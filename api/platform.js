@@ -3,14 +3,20 @@
  * Handles: tenants, subscription, subscription-plans, platform-announcements, platform-payments, platform-settings
  */
 import { setCors } from './_shared/auth-middleware.js';
+import { handler as tenantsHandler } from './_shared/modules/tenants.js';
+import { handler as subscriptionHandler } from './_shared/modules/subscription.js';
+import { handler as subscriptionPlansHandler } from './_shared/modules/subscription-plans.js';
+import { handler as platformAnnouncementsHandler } from './_shared/modules/platform-announcements.js';
+import { handler as platformPaymentsHandler } from './_shared/modules/platform-payments.js';
+import { handler as platformSettingsHandler } from './_shared/modules/platform-settings.js';
 
 const ROUTES = {
-  tenants: () => import('./_shared/modules/tenants.js'),
-  subscription: () => import('./_shared/modules/subscription.js'),
-  'subscription-plans': () => import('./_shared/modules/subscription-plans.js'),
-  'platform-announcements': () => import('./_shared/modules/platform-announcements.js'),
-  'platform-payments': () => import('./_shared/modules/platform-payments.js'),
-  'platform-settings': () => import('./_shared/modules/platform-settings.js'),
+  tenants: tenantsHandler,
+  subscription: subscriptionHandler,
+  'subscription-plans': subscriptionPlansHandler,
+  'platform-announcements': platformAnnouncementsHandler,
+  'platform-payments': platformPaymentsHandler,
+  'platform-settings': platformSettingsHandler,
 };
 
 export default async function handler(req, res) {
@@ -20,14 +26,13 @@ export default async function handler(req, res) {
   const pathParts = req.url.split('?')[0].split('/').filter(Boolean);
   const resource = pathParts[2];
 
-  const loader = ROUTES[resource];
-  if (!loader) {
+  const routeHandler = ROUTES[resource];
+  if (!routeHandler) {
     return res.status(404).json({ error: `Resource not found: ${resource}` });
   }
 
   try {
-    const { handler: routeHandler } = await loader();
-    return routeHandler(req, res);
+    return await routeHandler(req, res);
   } catch (err) {
     console.error(`Platform API error [${resource}]:`, err);
     return res.status(500).json({ error: err.message || 'Internal server error' });
