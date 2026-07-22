@@ -1,17 +1,27 @@
 import { setCors } from './auth-middleware.js';
 import supabase from './db-client.js';
+import { checkBackendEnv } from './env-check.js';
 
 export default async function handler(req, res) {
   setCors(res, 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
+  const envCheck = checkBackendEnv();
+
   let db = 'ok';
+  let dbDetails = null;
   try {
-    const { error } = await supabase.from('tenants').select('id').limit(1);
-    if (error) db = error.message;
+    const { error, data } = await supabase.from('tenants').select('id').limit(1);
+    if (error) {
+      db = 'error';
+      dbDetails = error.message;
+    } else {
+      dbDetails = `tenants table accessible, found ${data?.length ?? 0} rows sample`;
+    }
   } catch (e) {
-    db = e.message || 'down';
+    db = 'down';
+    dbDetails = e.message || 'unknown error';
   }
 
   return res.status(200).json({
@@ -19,6 +29,15 @@ export default async function handler(req, res) {
     service: 'rafd-api',
     time: new Date().toISOString(),
     db,
-    version: '1.0.0-p0',
+    dbDetails,
+    version: '1.2.0-p2',
+    env: {
+      isValid: envCheck.isValid,
+      missing: envCheck.missing,
+      warnings: envCheck.warnings,
+      present: envCheck.present,
+      // Never return actual values
+      requiredKeys: ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'],
+    },
   });
 }

@@ -140,9 +140,19 @@ export async function requireAuth(req, res, { permission, allowPlatform = false 
 
 /** User-scoped Supabase client (respects RLS when policies use auth.uid()) */
 export function createUserClient(token) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    console.error(
+      `[RAFD AUTH-MIDDLEWARE ENV ERROR] Missing ${!url ? 'NEXT_PUBLIC_SUPABASE_URL' : ''}${!url && !anonKey ? ' and ' : ''}${!anonKey ? 'NEXT_PUBLIC_SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY)' : ''}. ` +
+      `User-scoped client needed for RLS. Check GitHub Secrets/Variables and Vercel env. See .env.example`
+    );
+  }
+
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY,
+    url || '',
+    anonKey || '',
     {
       global: {
         headers: { Authorization: `Bearer ${token}` },
