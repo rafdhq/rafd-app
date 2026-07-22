@@ -1,5 +1,5 @@
 import { setCors } from './_shared/auth-middleware.js';
-import supabase from './_shared/db-client.js';
+import { supabase } from './_shared/db-client.js';
 import { checkBackendEnv } from './_shared/env-check.js';
 
 export default async function handler(req, res) {

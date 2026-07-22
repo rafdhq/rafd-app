@@ -1,4 +1,4 @@
-import supabase from '../db-client.js';
+import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
 import { methodNotAllowed } from '../auth-middleware.js';
 
