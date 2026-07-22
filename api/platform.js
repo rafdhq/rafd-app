@@ -2,15 +2,15 @@
  * Platform Domain Router (SaaS Management)
  * Handles: tenants, subscription, subscription-plans, platform-announcements, platform-payments, platform-settings
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  tenants: () => import('../api-shared/modules/tenants.js'),
-  subscription: () => import('../api-shared/modules/subscription.js'),
-  'subscription-plans': () => import('../api-shared/modules/subscription-plans.js'),
-  'platform-announcements': () => import('../api-shared/modules/platform-announcements.js'),
-  'platform-payments': () => import('../api-shared/modules/platform-payments.js'),
-  'platform-settings': () => import('../api-shared/modules/platform-settings.js'),
+  tenants: () => import('./_shared/modules/tenants.js'),
+  subscription: () => import('./_shared/modules/subscription.js'),
+  'subscription-plans': () => import('./_shared/modules/subscription-plans.js'),
+  'platform-announcements': () => import('./_shared/modules/platform-announcements.js'),
+  'platform-payments': () => import('./_shared/modules/platform-payments.js'),
+  'platform-settings': () => import('./_shared/modules/platform-settings.js'),
 };
 
 export default async function handler(req, res) {

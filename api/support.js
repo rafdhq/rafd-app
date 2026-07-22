@@ -2,15 +2,15 @@
  * Support Domain Router
  * Handles: notifications, push, whatsapp, upload, backups, sync
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  notifications: () => import('../api-shared/modules/notifications.js'),
-  push: () => import('../api-shared/modules/push.js'),
-  whatsapp: () => import('../api-shared/modules/whatsapp.js'),
-  upload: () => import('../api-shared/modules/upload.js'),
-  backups: () => import('../api-shared/modules/backups.js'),
-  sync: () => import('../api-shared/modules/sync.js'),
+  notifications: () => import('./_shared/modules/notifications.js'),
+  push: () => import('./_shared/modules/push.js'),
+  whatsapp: () => import('./_shared/modules/whatsapp.js'),
+  upload: () => import('./_shared/modules/upload.js'),
+  backups: () => import('./_shared/modules/backups.js'),
+  sync: () => import('./_shared/modules/sync.js'),
 };
 
 export default async function handler(req, res) {

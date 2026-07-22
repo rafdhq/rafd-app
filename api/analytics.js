@@ -2,13 +2,13 @@
  * Analytics Domain Router
  * Handles: reports, dashboard, audit-logs, tenant-catalog
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  reports: () => import('../api-shared/modules/reports.js'),
-  dashboard: () => import('../api-shared/modules/dashboard.js'),
-  'audit-logs': () => import('../api-shared/modules/audit-logs.js'),
-  'tenant-catalog': () => import('../api-shared/modules/tenant-catalog.js'),
+  reports: () => import('./_shared/modules/reports.js'),
+  dashboard: () => import('./_shared/modules/dashboard.js'),
+  'audit-logs': () => import('./_shared/modules/audit-logs.js'),
+  'tenant-catalog': () => import('./_shared/modules/tenant-catalog.js'),
 };
 
 export default async function handler(req, res) {

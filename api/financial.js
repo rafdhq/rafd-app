@@ -2,14 +2,14 @@
  * Financial Domain Router
  * Handles: expenses, bank-accounts, payment-terminals, customer-ledger, supplier-ledger
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  expenses: () => import('../api-shared/modules/expenses.js'),
-  'bank-accounts': () => import('../api-shared/modules/bank-accounts.js'),
-  'payment-terminals': () => import('../api-shared/modules/payment-terminals.js'),
-  'customer-ledger': () => import('../api-shared/modules/customer-ledger.js'),
-  'supplier-ledger': () => import('../api-shared/modules/supplier-ledger.js'),
+  expenses: () => import('./_shared/modules/expenses.js'),
+  'bank-accounts': () => import('./_shared/modules/bank-accounts.js'),
+  'payment-terminals': () => import('./_shared/modules/payment-terminals.js'),
+  'customer-ledger': () => import('./_shared/modules/customer-ledger.js'),
+  'supplier-ledger': () => import('./_shared/modules/supplier-ledger.js'),
 };
 
 export default async function handler(req, res) {

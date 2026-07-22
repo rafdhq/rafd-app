@@ -2,12 +2,12 @@
  * Transactions Domain Router
  * Handles: sales, purchases, refunds
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  sales: () => import('../api-shared/modules/sales.js'),
-  purchases: () => import('../api-shared/modules/purchases.js'),
-  refunds: () => import('../api-shared/modules/refunds.js'),
+  sales: () => import('./_shared/modules/sales.js'),
+  purchases: () => import('./_shared/modules/purchases.js'),
+  refunds: () => import('./_shared/modules/refunds.js'),
 };
 
 export default async function handler(req, res) {

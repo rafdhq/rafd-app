@@ -1,0 +1,6 @@
+# Ignore shared code from being built as separate Serverless Functions
+api/_shared/
+
+# Ignore test files
+*.test.js
+*.test.ts

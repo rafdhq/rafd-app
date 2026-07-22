@@ -2,14 +2,14 @@
  * Operations Domain Router
  * Handles: branches, users, shifts, stocktakes, invites
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  branches: () => import('../api-shared/modules/branches.js'),
-  users: () => import('../api-shared/modules/users.js'),
-  shifts: () => import('../api-shared/modules/shifts.js'),
-  stocktakes: () => import('../api-shared/modules/stocktakes.js'),
-  invites: () => import('../api-shared/modules/invites.js'),
+  branches: () => import('./_shared/modules/branches.js'),
+  users: () => import('./_shared/modules/users.js'),
+  shifts: () => import('./_shared/modules/shifts.js'),
+  stocktakes: () => import('./_shared/modules/stocktakes.js'),
+  invites: () => import('./_shared/modules/invites.js'),
 };
 
 export default async function handler(req, res) {

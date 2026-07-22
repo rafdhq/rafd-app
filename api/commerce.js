@@ -2,12 +2,12 @@
  * Commerce Domain Router
  * Handles: products, customers, suppliers
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  products: () => import('../api-shared/modules/products.js'),
-  customers: () => import('../api-shared/modules/customers.js'),
-  suppliers: () => import('../api-shared/modules/suppliers.js'),
+  products: () => import('./_shared/modules/products.js'),
+  customers: () => import('./_shared/modules/customers.js'),
+  suppliers: () => import('./_shared/modules/suppliers.js'),
 };
 
 export default async function handler(req, res) {

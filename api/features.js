@@ -2,14 +2,14 @@
  * Features Domain Router (P2 Advanced Features)
  * Handles: loyalty, pricing, recipes, ai, import-export
  */
-import { setCors } from '../api-shared/auth-middleware.js';
+import { setCors } from './_shared/auth-middleware.js';
 
 const ROUTES = {
-  loyalty: () => import('../api-shared/modules/loyalty.js'),
-  pricing: () => import('../api-shared/modules/pricing.js'),
-  recipes: () => import('../api-shared/modules/recipes.js'),
-  ai: () => import('../api-shared/modules/ai.js'),
-  'import-export': () => import('../api-shared/modules/import-export.js'),
+  loyalty: () => import('./_shared/modules/loyalty.js'),
+  pricing: () => import('./_shared/modules/pricing.js'),
+  recipes: () => import('./_shared/modules/recipes.js'),
+  ai: () => import('./_shared/modules/ai.js'),
+  'import-export': () => import('./_shared/modules/import-export.js'),
 };
 
 export default async function handler(req, res) {
