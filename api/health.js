@@ -1,6 +1,6 @@
-import { setCors } from './auth-middleware.js';
-import supabase from './db-client.js';
-import { checkBackendEnv } from './env-check.js';
+import { setCors } from '../api-shared/auth-middleware.js';
+import supabase from '../api-shared/db-client.js';
+import { checkBackendEnv } from '../api-shared/env-check.js';
 
 export default async function handler(req, res) {
   setCors(res, 'GET, OPTIONS');
