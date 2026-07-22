@@ -383,20 +383,30 @@ supabase/p2_features.sql
 
 ---
 
-## 12. قاعدة البيانات والأمن — Infrastructure Integration ✅
+## 12. قاعدة البيانات والأمن — Supabase CLI Migrations ✅
 
-> **مرحلة Infrastructure Integration مكتملة على فرع `develop`**
-> راجع `docs/SETUP.md` + `supabase/README.md` لدليل الربط الكامل.
+> **مرحلة Infrastructure Integration + Migrations الرسمية مكتملة على `develop`**
+> راجع `docs/SETUP.md` + `supabase/README.md` + `supabase/config.toml`
+> **التنفيذ بأمر واحد:** `supabase db push` (أو `npm run db:push`)
 
-### ترتيب تنفيذ SQL (إلزامي)
+### ترتيب تنفيذ SQL (Official Supabase CLI - `supabase/migrations/`)
+
 ```text
-1) supabase/000_base_schema.sql  → الجداول الأساسية (tenants, branches, products, sales...)
-2) supabase/001_storage.sql      → Bucket rafd-media + سياسات Storage
-3) supabase/p0_security.sql      → أعمدة ضريبة/idempotency + RLS
-4) supabase/p1_features.sql      → ورديات, مرتجعات, جرد, دعوات, push...
-5) supabase/p2_features.sql      → ولاء, أسعار, BOM, AI
+1) supabase/migrations/20260722000001_base_schema.sql  → الجداول الأساسية (tenants, branches, products, sales...)
+2) supabase/migrations/20260722000002_storage.sql      → Bucket rafd-media + سياسات Storage
+3) supabase/migrations/20260722000003_p0_security.sql   → أعمدة ضريبة/idempotency + RLS
+4) supabase/migrations/20260722000004_p1_features.sql   → ورديات, مرتجعات, جرد, دعوات, push...
+5) supabase/migrations/20260722000005_p2_features.sql   → ولاء, أسعار, BOM, AI
 ```
-كل الملفات **idempotent** وآمنة لإعادة التشغيل. انظر `supabase/migrate_all.sql` و `supabase/README.md`.
+
+كل الملفات **idempotent** ومرقمة زمنياً حسب معيار Supabase CLI. انظر `supabase/README.md` و `docs/workflows/supabase-migrate.yml` للـ GitHub Action التلقائي.
+
+**أمر واحد:**
+```bash
+supabase login
+supabase link --project-ref YOUR_REF
+supabase db push   # أو npm run db:push
+```
 
 ### جداول الأساسية (000_base)
 - `tenants` · `branches` · `app_users` · `products` · `product_packaging`
@@ -516,16 +526,26 @@ npm test && npm run build
 npm run dev  # http://localhost:5173
 ```
 
-### تنفيذ SQL على Supabase (إلزامي)
+### تنفيذ SQL على Supabase (إلزامي - Migrations رسمية)
 
 ```bash
-# الترتيب:
-# 1) supabase/000_base_schema.sql
-# 2) supabase/001_storage.sql
-# 3) supabase/p0_security.sql
-# 4) supabase/p1_features.sql
-# 5) supabase/p2_features.sql
-# راجع supabase/README.md
+# الطريقة الرسمية - أمر واحد:
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push   # يطبق كل ملفات supabase/migrations/ بالترتيب الزمني
+# أو: npm run db:push
+
+# التحقق:
+supabase db pull --linked  # اختياري
+npm run db:check           # يتحقق من tenants, products, sales, bucket rafd-media
+
+# الطريقة اليدوية (احتياطي):
+# 1) supabase/migrations/20260722000001_base_schema.sql
+# 2) supabase/migrations/20260722000002_storage.sql
+# 3) supabase/migrations/20260722000003_p0_security.sql
+# 4) supabase/migrations/20260722000004_p1_features.sql
+# 5) supabase/migrations/20260722000005_p2_features.sql
+# راجع supabase/README.md + docs/SETUP.md + docs/workflows/supabase-migrate.yml
 ```
 
 ### نشر Vercel

@@ -9,7 +9,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:check": "node scripts/test-supabase-connection.mjs",
+    "db:push": "supabase db push",
+    "db:push:linked": "supabase db push --linked",
+    "db:reset": "supabase db reset",
+    "db:link": "supabase link --project-ref",
+    "supabase:login": "supabase login"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.1",

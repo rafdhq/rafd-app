@@ -1,138 +1,164 @@
-# RAFD Supabase - دليل قاعدة البيانات
+# RAFD Supabase - Migrations (Official Supabase CLI Standard)
 
-> **RAFD | رفد - Retail ERP - Supabase Development Setup**
-> هذا المجلد يحتوي على كل سكربتات تهيئة قاعدة البيانات.
+> **RAFD | رفد - Retail ERP - Supabase Development**
+> All SQL migrations now follow official Supabase CLI standard: `supabase/migrations/`
 
-## الترتيب الإلزامي للتنفيذ
+## Structure (Supabase CLI Standard)
 
-نفّذ الملفات **بالترتيب التالي** في Supabase SQL Editor. جميع الملفات **idempotent** (آمنة لإعادة التنفيذ).
-
-```text
-1) 000_base_schema.sql   → الجداول الأساسية (متاجر، فروع، مستخدمون، منتجات، مبيعات...)
-2) p0_security.sql      → أعمدة الضريبة + idempotency + تفعيل RLS
-3) p1_features.sql      → ورديات، مرتجعات، جرد، دعوات، دفع، اشتراكات
-4) p2_features.sql      → ولاء، أسعار متعددة، وصفات/BOM، AI
+```
+supabase/
+├── config.toml          # Local stack config + project_id
+├── migrations/
+│   ├── 20260722000001_base_schema.sql   → Core tables (tenants, branches, products, sales...)
+│   ├── 20260722000002_storage.sql       → Bucket rafd-media + policies
+│   ├── 20260722000003_p0_security.sql   → Tax, idempotency, RLS
+│   ├── 20260722000004_p1_features.sql   → Shifts, refunds, stocktake, invites
+│   └── 20260722000005_p2_features.sql   → Loyalty, pricing, BOM, AI
+└── README.md            # This file
 ```
 
-## لماذا هذا الترتيب؟
+**Order is enforced by timestamp prefix** `YYYYMMDDHHMMSS`. All files are `IF NOT EXISTS` safe.
 
-| الملف | يعتمد على | ماذا يفعل |
-|------|----------|----------|
-| `000_base` | لا شيء | ينشئ كل الجداول الأساسية المطلوبة لـ P0. بدونها ستفشل P0 لأنه يعتمد `ALTER TABLE sales` |
-| `p0_security` | `000_base` | يضيف `idempotency_key`, `tax_rate`, `weight_g`, `server_version` + يفعل RLS على الجداول الحساسة |
-| `p1_features` | `p0_security` | جداول P1 التجارية (cashier_shifts, refunds, stocktake, invites, push, whatsapp...) |
-| `p2_features` | `p1_features` | جداول P2 التميزية (loyalty_*, price_lists, recipes, manufacturing_orders, ai_conversations) |
+## Single-Command Migration (Official Way)
 
-## كيفية التنفيذ على Supabase مشروع جديد (rafd-dev)
+### Prerequisites
 
-### الخطوة 1: إنشاء مشروع Supabase
+1. Install Supabase CLI:
+   ```bash
+   npm install -g supabase
+   # or
+   brew install supabase/tap/supabase
+   ```
 
-1. اذهب إلى https://supabase.com/dashboard
-2. New Project → الاسم المقترح `rafd-dev` (للتطوير) + Region `eu-central-1` (أقرب لليمن/السعودية)
-3. انتظر 2-3 دقائق حتى يصبح جاهزاً
-4. انسخ `Project URL` و `anon key` و `service_role key` من Settings → API
+2. Login:
+   ```bash
+   supabase login
+   # Opens browser, generates access token
+   ```
 
-### الخطوة 2: تنفيذ SQL
+3. Link to your remote project (rafd-dev):
+   ```bash
+   supabase link --project-ref YOUR_PROJECT_REF
+   # Find REF in Dashboard URL: https://supabase.com/dashboard/project/<REF>
+   # Will prompt for DB password (from Project Settings → Database → Connection String)
+   ```
 
-1. افتح Supabase Dashboard → SQL Editor → New Query
-2. انسخ محتوى `000_base_schema.sql` كاملاً → Run (يجب أن ترى Success)
-3. انسخ `p0_security.sql` → Run
-4. انسخ `p1_features.sql` → Run
-5. انسخ `p2_features.sql` → Run
+### Execute All Migrations with ONE Command
 
-> **نصيحة**: يمكنك تشغيلها جميعاً كملف واحد بدمجها، لكن الترتيب مهم.
+```bash
+# Push local migrations to remote (rafd-dev)
+supabase db push
 
-### الخطوة 3: إنشاء Storage Bucket
+# Or, to reset local dev stack and re-apply all migrations:
+supabase db reset
+```
 
-الكود يتوقع bucket باسم `rafd-media` لصور المنتجات وشعارات المتاجر.
+That's it! `db push` reads all files in `supabase/migrations/` in timestamp order and applies only new ones (tracked in `supabase_migrations.schema_migrations`).
+
+### Verify
+
+```bash
+supabase db pull --linked  # Optional: pull remote schema to ensure sync
+```
+
+Or check via SQL Editor:
 
 ```sql
--- تنفيذ في SQL Editor أو عبر Dashboard → Storage → New Bucket
-INSERT INTO storage.buckets (id, name, public) VALUES ('rafd-media', 'rafd-media', true) ON CONFLICT (id) DO NOTHING;
+SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;
+-- Should list 40+ tables: tenants, branches, app_users, products, sales, etc.
 
--- سياسة قراءة عامة (الصور عامة)
-CREATE POLICY "Public read rafd-media" ON storage.objects FOR SELECT USING (bucket_id = 'rafd-media');
-
--- سياسة كتابة للمستخدمين المصادق عليهم (عبر service_role سيتجاوزها، لكن نضيفها للحماية)
-CREATE POLICY "Authenticated write rafd-media" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'rafd-media');
-CREATE POLICY "Authenticated update rafd-media" ON storage.objects FOR UPDATE USING (bucket_id = 'rafd-media');
-CREATE POLICY "Authenticated delete rafd-media" ON storage.objects FOR DELETE USING (bucket_id = 'rafd-media');
+SELECT * FROM supabase_migrations.schema_migrations ORDER BY version;
+-- Should list 5 applied migrations
 ```
 
-أو أنشئه من Dashboard → Storage → New Bucket → Name: `rafd-media` → Public: Yes.
+## Creating New Migrations
 
-### الخطوة 4: ضبط Auth
+```bash
+supabase migration new <migration_name>
+# Creates supabase/migrations/<timestamp>_<migration_name>.sql
+# Edit the file, then:
+supabase db push
+```
 
-- Dashboard → Authentication → URL Configuration
-  - Site URL: `http://localhost:5173` (للتطوير) أو `https://YOUR_DOMAIN`
-  - Redirect URLs: أضف `http://localhost:5173/*` و `http://localhost:5173/auth/callback`
-  - و `https://*.vercel.app/*` للـ Preview
+## Storage Bucket
 
-- إذا تستخدم Google OAuth:
-  - Authentication → Providers → Google → Enable
-  - ضع Client ID و Client Secret من Google Cloud Console
-
-## التحقق من الجاهزية
-
-شغّل هذا الاستعلام للتأكد من وجود كل الجداول:
+Migration `20260722000002_storage.sql` creates bucket `rafd-media` (public) with policies:
 
 ```sql
-SELECT table_name FROM information_schema.tables 
-WHERE table_schema = 'public' 
-ORDER BY table_name;
-
--- يجب أن ترى على الأقل:
--- tenants, branches, app_users, products, product_packaging, customers, customer_ledger,
--- suppliers, supplier_ledger, sales, sale_items, expenses, bank_accounts, payment_terminals,
--- purchases, purchase_items, backups, audit_logs, sync_status, notifications, tenant_catalog,
--- cashier_shifts, refunds, refund_items, stocktake_sessions, stocktake_lines, user_invites,
--- push_subscriptions, whatsapp_outbox, loyalty_programs, loyalty_accounts, loyalty_ledger,
--- loyalty_offers, price_lists, product_prices, customer_price_overrides, branch_price_overrides,
--- recipes, recipe_items, manufacturing_orders, ai_conversations, platform_settings,
--- subscription_plans, tenant_subscriptions, subscription_payments, platform_announcements,
--- platform_payment_methods, device_bindings
+INSERT INTO storage.buckets (id, name, public) VALUES ('rafd-media','rafd-media', true) ...
 ```
 
-## إنشاء مستخدم تجريبي (اختياري)
+If bucket already exists, it does `ON CONFLICT DO NOTHING`.
+
+You can also create bucket via Dashboard → Storage → New Bucket → `rafd-media` → Public Yes.
+
+## Auth Config
+
+After migrations, configure in Dashboard → Authentication → URL Configuration:
+
+- Site URL: `http://localhost:5173`
+- Redirects: `http://localhost:5173/*`, `https://*.vercel.app/*`, `https://YOUR_DOMAIN/*`
+
+For Google OAuth: Authentication → Providers → Google → Enable with Client ID/Secret.
+
+## Seed (Optional)
+
+Create `supabase/seed.sql` for dev data, applied on `supabase start` and `db reset`:
 
 ```sql
--- 1. أنشئ مستخدم في Auth → Users → Add User (email: demo@rafd.app / password: password123)
--- 2. انسخ auth id من Auth
--- 3. أنشئ tenant ثم app_user:
-
-INSERT INTO tenants (name, name_ar, currency, plan, status) 
-VALUES ('متجر تجريبي', 'متجر تجريبي', 'YER', 'growth', 'active') RETURNING id;
-
-INSERT INTO branches (tenant_id, name, name_ar, is_main) VALUES (1, 'Main Branch', 'الفرع الرئيسي', true);
-
-INSERT INTO app_users (tenant_id, auth_id, email, full_name, role, status) 
-VALUES (1, 'AUTH_ID_FROM_SUPABASE_AUTH', 'demo@rafd.app', 'Demo Owner', 'owner', 'active');
+-- Example seed (optional)
+INSERT INTO tenants (name, name_ar) VALUES ('متجر تجريبي','متجر تجريبي') ON CONFLICT DO NOTHING;
 ```
 
-أو استخدم شاشة Onboarding في `/onboarding` إذا كانت مفعلة.
+## GitHub Action (Automated)
 
-## الانتقال إلى الإنتاج (rafd-prod)
+To auto-migrate on push to `develop`, create `.github/workflows/supabase-migrate.yml`:
 
-كرر نفس الخطوات لمشروع ثانٍ باسم `rafd-prod` بنفس الـ Region.
-- لا تستخدم نفس مفاتيح Dev في Prod.
-- في Vercel → Production env ضع مفاتيح Prod فقط.
-- في Vercel → Preview env ضع مفاتيح Dev.
+```yaml
+name: Supabase Migrate
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
 
-## مشاكل شائعة
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - run: supabase db push --linked
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+```
 
-| المشكلة | الحل |
-|---------|------|
-| `relation does not exist` | تأكد أنك نفذت `000_base_schema.sql` أولاً |
-| `RLS policy blocks` | API يستخدم `service_role` ويتجاوز RLS. للواجهة المباشرة، تحقق من `p0_security.sql` سياسات `deny anon` |
-| `storage bucket not found` | أنشئ `rafd-media` كـ public bucket |
-| `idempotency_key duplicate` | طبيعي، حماية تكرار البيع. استخدم key مختلف لكل فاتورة |
+Required Secrets (GitHub → Settings → Secrets):
 
-## ملاحظات أمن
+- `SUPABASE_ACCESS_TOKEN` - from https://supabase.com/dashboard/account/tokens
+- `SUPABASE_PROJECT_REF` - e.g., `abcdefghijklmnopqrst`
+- `SUPABASE_DB_PASSWORD` - Database password from Project Settings
 
-- `SUPABASE_SERVICE_ROLE_KEY` لا يجب أن يظهر أبداً في المتصفح أو في Git.
-- جميع جداول `products, customers, sales...` مفعّل عليها RLS (`ENABLE ROW LEVEL SECURITY`) لمنع الوصول المباشر بـ anon key. الـ API يستخدم service_role.
-- في الإنتاج، فعّل Point-in-Time Recovery من Dashboard → Database → Backups (يتطلب خطة Pro).
+**Note:** Current `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` are for app runtime, not for CLI migrations. For migrations you need Access Token + DB Password.
+
+## No Manual SQL Editor Needed
+
+All migrations are now in `supabase/migrations/` and executable with `supabase db push` - single command. No copy-paste in SQL Editor unless technically impossible (e.g., CLI not linked).
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| `relation does not exist` | Ensure migrations applied in order via `db push` |
+| `supabase_migrations` table not found | Run `supabase link` first |
+| Permission denied on storage | Ensure `001_storage.sql` applied, bucket public |
+| Auth redirect errors | Check URL Configuration in Dashboard |
 
 ---
 
-**آخر تحديث**: 2026-07-22 - Infrastructure Integration Phase - develop branch
+**Last Updated:** 2026-07-22 - Infrastructure Migration Phase - develop branch - Supabase CLI standard

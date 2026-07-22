@@ -72,50 +72,96 @@ npm ci
    - انسخ `anon public` → هذا هو `VITE_SUPABASE_ANON_KEY` و `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - انسخ `service_role secret` → هذا هو `SUPABASE_SERVICE_ROLE_KEY` (سري جداً)
 
-## 4) تنفيذ سكربتات SQL
+## 4) تنفيذ سكربتات SQL - الطريقة الرسمية (Supabase Migrations)
 
-> الترتيب إلزامي. جميع الملفات idempotent (آمنة لإعادة التنفيذ).
+> **تم التحويل إلى نظام Migrations الرسمي:** جميع ملفات SQL الآن في `supabase/migrations/` بترقيم زمني ووفق معيار Supabase CLI
+> **أمر واحد فقط لتنفيذ كل شيء:** `supabase db push`
 
-افتح **Supabase Dashboard → SQL Editor → New Query** ونفّذ بالترتيب:
-
-### 4.1 الأساس `000_base_schema.sql`
-
-```bash
-# انسخ محتوى الملف كاملاً من المستودع:
-cat supabase/000_base_schema.sql
-```
-
-- الصق في SQL Editor → **Run**
-- يجب أن ترى `Success. No rows returned`
-- هذا ينشئ: `tenants, branches, app_users, products, product_packaging, customers, sales, sale_items, expenses...` + `platform_settings, subscription_plans`
-
-### 4.2 الأمان `p0_security.sql`
+### 4.1 تثبيت Supabase CLI
 
 ```bash
-cat supabase/p0_security.sql
+npm install -g supabase
+# أو
+brew install supabase/tap/supabase
+
+supabase --version
 ```
 
-- يضيف: `idempotency_key`, `tax_rate`, `weight_g`, `server_version`
-- يفعل RLS على الجداول الحساسة
+### 4.2 تسجيل الدخول وربط المشروع
 
-### 4.3 الميزات الأساسية `p1_features.sql`
+```bash
+supabase login
+# يفتح المتصفح لإنشاء Access Token
 
-- ينشئ: `cashier_shifts, refunds, stocktake_sessions, user_invites, push_subscriptions, whatsapp_outbox, audit_logs...`
+supabase link --project-ref YOUR_PROJECT_REF
+# تجد REF في رابط Dashboard: https://supabase.com/dashboard/project/<REF>
+# سيطلب كلمة مرور قاعدة البيانات (Project Settings → Database → Connection String)
+```
 
-### 4.4 الميزات التميزية `p2_features.sql`
+### 4.3 تنفيذ جميع Migrations بأمر واحد
 
-- ينشئ: `loyalty_programs, loyalty_accounts, price_lists, recipes, manufacturing_orders, ai_conversations...`
+```bash
+# من جذر المشروع:
+supabase db push
 
-### التحقق
+# سيطبق بالترتيب:
+# 20260722000001_base_schema.sql  → الجداول الأساسية
+# 20260722000002_storage.sql      → Bucket rafd-media
+# 20260722000003_p0_security.sql  → ضريبة، idempotency، RLS
+# 20260722000004_p1_features.sql  → ورديات، مرتجعات، جرد، دعوات
+# 20260722000005_p2_features.sql  → ولاء، أسعار، BOM، AI
+```
 
-شغّل في SQL Editor:
+**أو عبر npm script (تمت إضافته):**
+```bash
+npm run db:push         # supabase db push
+npm run db:push:linked  # supabase db push --linked
+```
+
+### 4.4 التحقق
+
+```bash
+npm run db:check
+# أو
+node scripts/test-supabase-connection.mjs
+# سيتحقق من tenants, branches, products, sales, shifts, loyalty, pricing, recipes, ai_conversations, storage bucket
+```
+
+أو عبر SQL Editor:
 
 ```sql
 SELECT table_name FROM information_schema.tables 
 WHERE table_schema='public' ORDER BY table_name;
+
+SELECT version, name FROM supabase_migrations.schema_migrations ORDER BY version;
+-- يجب أن ترى 5 migrations مطبقة
 ```
 
-يجب أن ترى 40+ جدولاً حسب `supabase/README.md`.
+### 4.5 الطريقة اليدوية (احتياطي - إذا كان CLI غير متاح)
+
+إذا لم تستطع استخدام CLI، لا يزال بإمكانك النسخ واللصق في SQL Editor كخطة B، لكن الطريقة الرسمية هي `db push`.
+
+افتح `supabase/migrations/` ونفّذ بالترتيب الزمني نفس الملفات السابقة.
+
+### 4.6 إنشاء Migration جديدة مستقبلاً
+
+```bash
+supabase migration new add_new_feature
+# ينشئ supabase/migrations/<timestamp>_add_new_feature.sql
+# عدّل الملف ثم:
+supabase db push
+```
+
+### 4.7 GitHub Action تلقائي (اختياري)
+
+تم توفير قالب في `docs/workflows/supabase-migrate.yml` - انسخه يدوياً إلى `.github/workflows/supabase-migrate.yml` عبر GitHub UI (لا يمكن دفعه عبر GitHub App بدون صلاحية `workflows`).
+
+يتطلب Secrets:
+- `SUPABASE_ACCESS_TOKEN` - من https://supabase.com/dashboard/account/tokens
+- `SUPABASE_PROJECT_REF` - e.g. `abcdefghijklmnopqrst`
+- `SUPABASE_DB_PASSWORD` - من Project Settings → Database
+
+بعد إنشائه، كل push إلى `develop` سينفذ `supabase db push` تلقائياً.
 
 ## 5) إنشاء Storage Bucket
 

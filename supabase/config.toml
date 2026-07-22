@@ -1,0 +1,58 @@
+# RAFD | رفد - Supabase Local & Remote Config
+# Generated for Supabase CLI standard workflow
+# Docs: https://supabase.com/docs/guides/local-development/cli/getting-started
+
+# Project ID - used for local stack naming
+project_id = "rafd-app"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://localhost:54321"
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[storage]
+enabled = true
+port = 54325
+file_size_limit = "50MiB"
+import_path = "./storage"
+# Storage bucket definitions (optional, declarative)
+# Buckets will be created via migration 0002, not here, to keep idempotent SQL as source
+
+[auth]
+enabled = true
+port = 54321
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:3000", "https://*.vercel.app"]
+jwt_expiry = 3600
+enable_signup = true
+enable_confirmations = false
+enable_manual_linking = true
+# External providers configured via dashboard or env vars
+[auth.external.google]
+enabled = false
+
+# Local development only - not for production
+# Secrets should use env() in production: e.g., client_id = env(GOOGLE_CLIENT_ID)
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
