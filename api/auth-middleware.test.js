@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasPermission, ROLE_PERMISSIONS } from './permissions.js';
+import { hasPermission, ROLE_PERMISSIONS } from '../api-shared/permissions.js';
 
 describe('role permissions', () => {
   it('owner has wildcard', () => {

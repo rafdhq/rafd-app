@@ -5,7 +5,51 @@
   "installCommand": "npm ci",
   "devCommand": "npm run dev",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/api/products", "destination": "/api/commerce/products" },
+    { "source": "/api/customers", "destination": "/api/commerce/customers" },
+    { "source": "/api/suppliers", "destination": "/api/commerce/suppliers" },
+
+    { "source": "/api/sales", "destination": "/api/transactions/sales" },
+    { "source": "/api/purchases", "destination": "/api/transactions/purchases" },
+    { "source": "/api/refunds", "destination": "/api/transactions/refunds" },
+
+    { "source": "/api/expenses", "destination": "/api/financial/expenses" },
+    { "source": "/api/bank-accounts", "destination": "/api/financial/bank-accounts" },
+    { "source": "/api/payment-terminals", "destination": "/api/financial/payment-terminals" },
+    { "source": "/api/customer-ledger", "destination": "/api/financial/customer-ledger" },
+    { "source": "/api/supplier-ledger", "destination": "/api/financial/supplier-ledger" },
+
+    { "source": "/api/branches", "destination": "/api/operations/branches" },
+    { "source": "/api/users", "destination": "/api/operations/users" },
+    { "source": "/api/shifts", "destination": "/api/operations/shifts" },
+    { "source": "/api/stocktakes", "destination": "/api/operations/stocktakes" },
+    { "source": "/api/invites", "destination": "/api/operations/invites" },
+
+    { "source": "/api/loyalty", "destination": "/api/features/loyalty" },
+    { "source": "/api/pricing", "destination": "/api/features/pricing" },
+    { "source": "/api/recipes", "destination": "/api/features/recipes" },
+    { "source": "/api/ai", "destination": "/api/features/ai" },
+    { "source": "/api/import-export", "destination": "/api/features/import-export" },
+
+    { "source": "/api/tenants", "destination": "/api/platform/tenants" },
+    { "source": "/api/subscription", "destination": "/api/platform/subscription" },
+    { "source": "/api/subscription-plans", "destination": "/api/platform/subscription-plans" },
+    { "source": "/api/platform-announcements", "destination": "/api/platform/platform-announcements" },
+    { "source": "/api/platform-payments", "destination": "/api/platform/platform-payments" },
+    { "source": "/api/platform-settings", "destination": "/api/platform/platform-settings" },
+
+    { "source": "/api/notifications", "destination": "/api/support/notifications" },
+    { "source": "/api/push", "destination": "/api/support/push" },
+    { "source": "/api/whatsapp", "destination": "/api/support/whatsapp" },
+    { "source": "/api/upload", "destination": "/api/support/upload" },
+    { "source": "/api/backups", "destination": "/api/support/backups" },
+    { "source": "/api/sync", "destination": "/api/support/sync" },
+
+    { "source": "/api/reports", "destination": "/api/analytics/reports" },
+    { "source": "/api/dashboard", "destination": "/api/analytics/dashboard" },
+    { "source": "/api/audit-logs", "destination": "/api/analytics/audit-logs" },
+    { "source": "/api/tenant-catalog", "destination": "/api/analytics/tenant-catalog" },
+
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
