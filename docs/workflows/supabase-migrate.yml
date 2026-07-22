@@ -41,9 +41,10 @@ jobs:
       - name: Link Supabase project
         run: |
           echo "Linking to project ref: ${{ secrets.SUPABASE_PROJECT_REF }}"
-          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Push all migrations (single command)
         run: |
