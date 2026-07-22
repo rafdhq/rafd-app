@@ -1,13 +1,21 @@
 {
-  "env": {
-    "NEXT_PUBLIC_SUPABASE_URL": "https://jkfkjtvhswqalkyizapt.supabase.co",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_3kSTjC6Db8fQ3L4RetIRJA_cih1oFex",
-    "SUPABASE_SERVICE_ROLE_KEY": "sb_secret_DSh4Ue9yyN-9gEXa6v11Hg_fJETBKYS",
-    "VITE_SUPABASE_URL": "https://jkfkjtvhswqalkyizapt.supabase.co",
-    "VITE_SUPABASE_ANON_KEY": "sb_publishable_3kSTjC6Db8fQ3L4RetIRJA_cih1oFex",
-    "VITE_GOOGLE_CLIENT_ID": "1065078894672-rmp5kp8vfjns5rn9kp5psfp16g691043.apps.googleusercontent.com",
-    "VITE_GOOGLE_AUTH_PROXY": "https://designarena.ai/auth/google/callback",
-    "FULLSTACK_PROJECT_REF": "jkfkjtvhswqalkyizapt",
-    "FULLSTACK_RESTORE_API_URL": "https://designarena.ai/api/fullstack-restore"
-  }
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm ci",
+  "devCommand": "npm run dev",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,PUT,DELETE,OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Tenant-Id" }
+      ]
+    }
+  ]
 }
