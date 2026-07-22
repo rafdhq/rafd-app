@@ -2,7 +2,7 @@ import supabase from '../db-client.js';
 import { withApi } from '../handler.js';
 import { methodNotAllowed } from '../auth-middleware.js';
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId }) {
     if (req.method !== 'GET') return methodNotAllowed(res);
 

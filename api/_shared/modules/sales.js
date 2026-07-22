@@ -26,7 +26,7 @@ async function findIdempotentSale(tenantId, key) {
   return data || null;
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     if (req.method === 'GET') {
       const { status, id, customer_id, include_items } = req.query;

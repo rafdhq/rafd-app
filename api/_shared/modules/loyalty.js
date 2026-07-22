@@ -64,7 +64,7 @@ async function getOrCreateAccount(tenantId, customerId) {
   return data;
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId, auth }) {
     const tid = tenantId;
 

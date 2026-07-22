@@ -7,7 +7,7 @@ import { methodNotAllowed } from '../auth-middleware.js';
  * - Always returns a wa.me deep link (works offline-ready on devices with WhatsApp).
  * - If WHATSAPP_TOKEN + WHATSAPP_PHONE_NUMBER_ID are set, also attempts Cloud API send.
  */
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     if (req.method !== 'POST') return methodNotAllowed(res);
 

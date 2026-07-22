@@ -26,7 +26,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { default: routeHandler } = await loader();
+    const { handler: routeHandler } = await loader();
     return routeHandler(req, res);
   } catch (err) {
     console.error(`Platform API error [${resource}]:`, err);

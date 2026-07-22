@@ -10,7 +10,7 @@ function num(v, d = 0) {
   return Number.isFinite(n) ? n : d;
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId, auth }) {
     const tid = tenantId;
 

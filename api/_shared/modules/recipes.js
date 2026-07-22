@@ -14,7 +14,7 @@ function explode(items, outputQty, yieldQty = 1) {
   });
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId, auth }) {
     const tid = tenantId;
 

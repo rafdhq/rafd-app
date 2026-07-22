@@ -212,7 +212,7 @@ function answer(question, analysis, locale) {
   return analysis.insights.map((i) => `• ${i.title}: ${i.body}`).join('\n');
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     const tid = tenantId;
     const locale = (req.query.locale || req.body?.locale || 'ar') === 'en' ? 'en' : 'ar';

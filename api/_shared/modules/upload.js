@@ -5,7 +5,7 @@ import { withApi } from '../handler.js';
  * Image upload with optional server-side size guard.
  * Client should compress via src/lib/imageCompress.ts first.
  */
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId }) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 

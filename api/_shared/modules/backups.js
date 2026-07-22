@@ -37,7 +37,7 @@ async function snapshotTenant(tenantId) {
   };
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     if (req.method === 'GET') {
       const tid = tenantId || req.query.tenant_id;

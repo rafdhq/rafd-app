@@ -6,7 +6,7 @@ function token() {
   return `rafd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export default async function handler(req, res) {
+export const handler = async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 

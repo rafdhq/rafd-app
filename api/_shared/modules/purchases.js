@@ -70,7 +70,7 @@ async function receiveStock(items) {
   }
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId }) {
     if (req.method === 'GET') {
       const { id, supplier_id, status } = req.query;

@@ -14,7 +14,7 @@ function inRange(dateStr, from, to) {
   return true;
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId }) {
     if (req.method !== 'GET') return methodNotAllowed(res);
 

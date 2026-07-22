@@ -7,7 +7,7 @@ import { methodNotAllowed } from '../auth-middleware.js';
  * Actual browser push requires VAPID keys (VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY).
  * When keys are missing we still store subscriptions and create in-app notifications.
  */
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     if (req.method === 'GET') {
       const { data, error } = await supabase

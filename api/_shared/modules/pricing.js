@@ -62,7 +62,7 @@ function resolvePrice({
   return { price: Number(basePrice || 0), source: 'base', price_list_id: list?.id || null };
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { tenantId }) {
     const tid = tenantId;
 

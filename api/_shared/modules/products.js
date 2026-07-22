@@ -47,7 +47,7 @@ async function upsertPackaging(productId, tenantId, unitsPerCarton, cartonCost, 
   }
 }
 
-export default withApi(
+export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
     if (req.method === 'GET') {
       const { q, barcode, category, low_stock } = req.query;

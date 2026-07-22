@@ -1,7 +1,7 @@
 import supabase from '../db-client.js';
 import { setCors, requireAuth, resolveTenantId, hasPermission } from '../auth-middleware.js';
 
-export default async function handler(req, res) {
+export const handler = async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
