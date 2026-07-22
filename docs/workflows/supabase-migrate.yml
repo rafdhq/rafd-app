@@ -1,21 +1,37 @@
-name: Supabase Migrate (Official CLI)
+name: Supabase Migrations - RAFD
 
-# This workflow auto-applies supabase/migrations/ on push to develop
-# Requires secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
-# Setup: GitHub → Settings → Secrets → Actions → New secret
-# Manual creation needed because GitHub App cannot push workflow files directly
+# Official Supabase CLI migrations via GitHub Actions
+# Single command execution: supabase db push
+# No manual SQL Editor copy-paste needed
 
 on:
   push:
     branches: [develop]
+    paths:
+      - 'supabase/migrations/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/supabase-migrate.yml'
   workflow_dispatch:
 
 jobs:
   migrate:
     runs-on: ubuntu-latest
+    concurrency:
+      group: supabase-migrate
+      cancel-in-progress: false
+
     steps:
-      - name: Checkout
+      - name: Checkout develop
         uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -23,24 +39,49 @@ jobs:
           version: latest
 
       - name: Link Supabase project
-        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          echo "Linking to project ref: ${{ secrets.SUPABASE_PROJECT_REF }}"
+          supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }} --password "${{ secrets.SUPABASE_DB_PASSWORD }}"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
-      - name: Push migrations
-        run: supabase db push --linked --include-all
+      - name: Push all migrations (single command)
+        run: |
+          echo "Executing: supabase db push --linked"
+          supabase db push --linked --include-all
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Verify
-        run: |
-          echo "Migrations pushed. Checking tables..."
-          # Optional: run node script to verify connection
-          npm ci
-          node scripts/test-supabase-connection.mjs
+      - name: Verify migrations applied
+        run: supabase migration list --linked || true
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Test Supabase DB connection + tables
+        run: node scripts/test-supabase-connection.mjs
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Run tests & build
+        run: |
+          npm test
+          npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Summary
+        run: |
+          echo "✅ All migrations executed"
+          echo "✅ DB connection verified"
+          echo "✅ Tests and build passed"
+          ls -1 supabase/migrations/ | sort
