@@ -22,7 +22,7 @@ import {
   isWeightCategory,
   resolveTenantCategories,
 } from '../lib/catalog';
-import { categoryIconSrc, isPresetIconUrl } from '../lib/productMedia';
+import { categoryIconSrc, isPresetIconUrl, isRealImageUrl } from '../lib/productMedia';
 
 const emptyForm = {
   name: '',
@@ -149,7 +149,11 @@ export default function Products() {
       carton_cost: Number(p.carton_cost ?? Number(p.cost) * upc),
       min_stock: Number(p.min_stock),
       unit: p.unit || 'حبة',
-      image_url: isPresetIconUrl(p.image_url) ? p.image_url || categoryIconSrc(p.category) : categoryIconSrc(p.category),
+      image_url: isRealImageUrl(p.image_url)
+        ? p.image_url || categoryIconSrc(p.category)
+        : isPresetIconUrl(p.image_url)
+          ? p.image_url || categoryIconSrc(p.category)
+          : categoryIconSrc(p.category),
       is_active: p.is_active,
       sell_by_weight: isWeightProduct(p),
       supplier_id: p.supplier_id || '',
