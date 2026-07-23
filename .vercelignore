@@ -1,5 +1,5 @@
-# Ignore shared modules from being built as separate functions
-api/lib/modules/
+# Ignore shared code from being built as separate functions
+api/lib/
 
 # Ignore test files
 *.test.js
