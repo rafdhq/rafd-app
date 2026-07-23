@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 /**
  * Image upload with optional server-side size guard.

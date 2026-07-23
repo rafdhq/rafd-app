@@ -1,6 +1,6 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
-import { methodNotAllowed } from '../auth-middleware';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
+import { methodNotAllowed } from '../auth-middleware.js';
 
 function explode(items, outputQty, yieldQty = 1) {
   const y = Number(yieldQty || 1) || 1;

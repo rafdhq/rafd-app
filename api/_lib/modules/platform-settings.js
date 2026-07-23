@@ -1,4 +1,4 @@
-import { supabase } from '../db-client';
+import { supabase } from '../db-client.js';
 
 const DEFAULTS = {
   app_name: 'RAFD',

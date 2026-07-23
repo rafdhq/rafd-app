@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {

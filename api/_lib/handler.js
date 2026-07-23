@@ -1,4 +1,4 @@
-import { setCors, requireAuth, resolveTenantId, methodNotAllowed } from './auth-middleware';
+import { setCors, requireAuth, resolveTenantId, methodNotAllowed } from './auth-middleware.js';
 
 /**
  * Wrap a resource handler with CORS + auth + tenant resolution.

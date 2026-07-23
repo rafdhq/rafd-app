@@ -1,4 +1,4 @@
-import { supabase } from '../db-client';
+import { supabase } from '../db-client.js';
 
 function addDays(date, days) {
   const d = new Date(date);

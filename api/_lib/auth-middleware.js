@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from './db-client';
-import { hasPermission, ROLE_PERMISSIONS } from './permissions';
+import { supabase } from './db-client.js';
+import { hasPermission, ROLE_PERMISSIONS } from './permissions.js';
 
 export { hasPermission, ROLE_PERMISSIONS };
 

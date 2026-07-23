@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { triggerRestore } from './db-wake';
+import { triggerRestore } from './db-wake.js';
 
 /**
  * Supabase service client (server-only)

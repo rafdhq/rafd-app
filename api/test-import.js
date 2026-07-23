@@ -1,4 +1,4 @@
-import { setCors } from './_lib/auth-middleware';
+import { setCors } from './_lib/auth-middleware.js';
 
 export default function handler(req, res) {
   setCors(res);

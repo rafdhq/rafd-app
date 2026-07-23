@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { setCors, requireAuth, resolveTenantId, hasPermission } from '../auth-middleware';
+import { supabase } from '../db-client.js';
+import { setCors, requireAuth, resolveTenantId, hasPermission } from '../auth-middleware.js';
 
 export const handler = async function handler(req, res) {
   setCors(res);

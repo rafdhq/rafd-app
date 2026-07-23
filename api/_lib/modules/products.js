@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 function computeUnitCost(cartonCost, unitsPerCarton) {
   const units = Number(unitsPerCarton || 0);
