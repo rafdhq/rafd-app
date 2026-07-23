@@ -4,11 +4,7 @@
 
 > Premium Grocery / Retail / F&B Store Management Platform for **Yemen** and **Saudi Arabia**.
 
-**الإصدار الحالي:** `1.2.0-p2`  
-**حالة المرحلة الأولى (P0):** ✅ **مكتملة**  
-**حالة المرحلة الثانية (P1):** ✅ **مكتملة**  
-**حالة المرحلة الثالثة (P2):** ✅ **مكتملة** (منفّذة، مدمجة، مختبَرة بـ Vitest + production build)  
-**نسبة إنجاز المشروع الإجمالية:** **~96%** (كانت ~90% بعد P1)
+> **حالة هذا المستند:** محدَّث بعد مراجعة منطق الأعمال (`docs/BUSINESS_LOGIC_AUDIT.md`، BL-01..BL-12) وإصلاح جذري لصفحتَي المنتجات/المخزون، Offline-first، رفع الصور، والجلسات. كل بند موثَّق هنا إمّا **مُنفَّذ ومُختبَر فعلياً** (اختبار Vitest حقيقي أو تحقّق مباشر من قاعدة بيانات `rafd-dev`)، أو موسوم صراحةً كقيد/عمل متبقٍّ. لا يوجد وصف لميزة لم تُثبَت.
 
 ---
 
@@ -18,22 +14,24 @@
 2. [الوعد والمبادئ](#2-الوعد-والمبادئ)
 3. [الهوية البصرية](#3-الهوية-البصرية)
 4. [المستخدمون والأدوار](#4-المستخدمون-والأدوار)
-5. [الميزات الحالية](#5-الميزات-الحالية)
-6. [مراحل العمل — P0 / P1 / P2 / P3](#6-مراحل-العمل--p0--p1--p2--p3)
-7. [تقرير تقدم المرحلة الثالثة (P2)](#7-تقرير-تقدم-المرحلة-الثالثة-p2)
-8. [Changelog](#8-changelog)
-9. [التكاملات](#9-التكاملات)
-10. [المعمارية التقنية](#10-المعمارية-التقنية)
-11. [هيكل المشروع](#11-هيكل-المشروع)
-12. [قاعدة البيانات والأمن](#12-قاعدة-البيانات-والأمن)
-13. [نظام التصميم](#13-نظام-التصميم)
-14. [المسارات](#14-المسارات)
-15. [المتغيرات البيئية](#15-المتغيرات-البيئية)
-16. [التشغيل والاختبار](#16-التشغيل-والاختبار)
-17. [النشر](#17-النشر)
-18. [حسابات تجريبية](#18-حسابات-تجريبية)
-19. [اتفاقيات التطوير](#19-اتفاقيات-التطوير)
-20. [حالة الجاهزية](#20-حالة-الجاهزية)
+5. [المعمارية التقنية](#5-المعمارية-التقنية)
+6. [حالة الوحدات (Modules)](#6-حالة-الوحدات-modules)
+7. [Offline-First والمزامنة](#7-offline-first-والمزامنة)
+8. [المصادقة والجلسات](#8-المصادقة-والجلسات)
+9. [رفع الملفات والصور](#9-رفع-الملفات-والصور)
+10. [المنتجات والمخزون](#10-المنتجات-والمخزون)
+11. [الصلاحيات وRLS](#11-الصلاحيات-وrls)
+12. [قاعدة البيانات — Migrations](#12-قاعدة-البيانات--migrations)
+13. [إصلاحات منطق الأعمال (BL-01..BL-12)](#13-إصلاحات-منطق-الأعمال-bl-01bl-12)
+14. [نظام التصميم](#14-نظام-التصميم)
+15. [المسارات](#15-المسارات)
+16. [المتغيرات البيئية](#16-المتغيرات-البيئية)
+17. [التشغيل والاختبار](#17-التشغيل-والاختبار)
+18. [النشر](#18-النشر)
+19. [حساب الدخول الفعلي](#19-حساب-الدخول-الفعلي)
+20. [اتفاقيات التطوير](#20-اتفاقيات-التطوير)
+21. [القيود والمشاكل المتبقية](#21-القيود-والمشاكل-المتبقية)
+22. [Changelog](#22-changelog)
 
 ---
 
@@ -48,14 +46,14 @@
 
 ## 2. الوعد والمبادئ
 
-| المبدأ | المعنى |
-|--------|--------|
-| Offline First | Outbox + Service Worker + مزامنة عند عودة الشبكة |
-| RTL First + i18n | عربية أصيلة + إنجليزية فورية بدون إعادة تشغيل |
-| Touch First | أهداف لمس ≥ 44px + أصداف جوال |
-| 3 Clicks Max | وصول سريع من الشريط |
-| WCAG AA | تباين وتركيز |
-| Multi-tenant isolation | `tenant_id` + JWT + صلاحيات API |
+| المبدأ | المعنى | الحالة |
+|--------|--------|--------|
+| Offline First | Outbox + IndexedDB cache + مزامنة عند عودة الشبكة | ✅ للمبيعات والمنتجات/المخزون (انظر §7) |
+| RTL First + i18n | عربية أصيلة + إنجليزية فورية بدون إعادة تشغيل | ✅ |
+| Touch First | أهداف لمس ≥ 44px + أصداف جوال | ✅ |
+| 3 Clicks Max | وصول سريع من الشريط | ✅ |
+| WCAG AA | تباين وتركيز | ✅ |
+| Multi-tenant isolation | `tenant_id` + JWT + صلاحيات على طبقة API (المصدر الفعلي للعزل) + RLS كطبقة دفاع ثانية | ✅ — انظر §11 |
 
 ---
 
@@ -74,545 +72,400 @@
 |-------|--------|----------------|
 | المالك | `owner` | `*` |
 | المدير | `manager` | تشغيل + تقارير + AI + ولاء + أسعار + استيراد |
-| الكاشير | `cashier` | POS + ولاء قراءة/كتابة + جوال |
+| الكاشير | `cashier` | POS + ولاء قراءة/كتابة + جوال — **خصم يدوي محدود بسقف 10% من المجموع الفرعي (مفروض على الخادم، انظر BL-08)** |
 | المستودع | `warehouse` | مخزون + وصفات/تصنيع + استيراد |
 | المحاسب | `accountant` | مالية + AI + تصدير |
-| سوبر أدمن | `superadmin` | المنصة |
+| سوبر أدمن | `superadmin` | المنصة كاملة (`*` + `platform:*`) — قد يملك متجراً خاصاً به أيضاً (مالك + سوبر أدمن معاً) |
 
-**مصفوفة الخادم:** `api/permissions.js` (مُحدَّثة لـ P2: `ai:*` `loyalty:*` `pricing:*` `recipes:*` `manufacturing:*` `import:use` `export:use` `mobile:use`).
-
----
-
-## 5. الميزات الحالية
-
-### مصادقة وعزل
-- [x] بريد/كلمة مرور + Google OAuth
-- [x] JWT تلقائي لـ `/api/*`
-- [x] صلاحيات أدوار على API (P0–P2)
-- [x] دعوة مستخدمين برابط قبول
-
-### POS والأجهزة (P0/P1)
-- [x] لمس، باركود USB/كاميرا، ESC/POS، درج نقد، آجل، تحويل، وزن
-- [x] offline sales outbox + مزامنة
-
-### تشغيل المتجر (P1)
-- [x] ورديات · مرتجعات · جرد · مشتريات→مخزون · P&L/Excel · Push/WhatsApp · ضغط صور · اشتراكات · Audit UI
-
-### تميز Retail ERP (P2) — جديد
-- [x] **مساعد AI** تحليل مبيعات/أرباح/إعادة طلب/راكد + محادثة عربية/إنجليزية
-- [x] **نظام ولاء** نقاط · استبدال · مستويات · عروض
-- [x] **تعدد الأسعار** قطاعي/جملة/نصف جملة/VIP + تجاوز عميل/فرع
-- [x] **مطاعم BOM** وصفات · هدر · تصنيع يخصم المكونات ويزيد المنتج النهائي
-- [x] **استيراد/تصدير Excel/CSV** منتجات · عملاء · موردون · مخزون · مشتريات
-- [x] **i18n AR/EN** تبديل فوري (dir/lang) من الشريط
-- [x] **تطبيقات جوال** `/mobile` + `/mobile/manager` + `/mobile/staff` offline-first
+**مصفوفة الخادم:** `api/_lib/permissions.js`. تُفرض عبر `withApi`/`requireAuth` على كل مسار API حساس (`api/_lib/handler.js` + `api/_lib/auth-middleware.js`).
 
 ---
 
-## 6. مراحل العمل — P0 / P1 / P2 / P3
-
-### P0 — حرج قبل عميل حقيقي — ✅ مكتملة
-
-| # | المكوّن | الحالة |
-|---|---------|--------|
-| 1–8 | أمن API، offline، sync، ضريبة، اختبارات، Sentry، نسخ احتياطي | ✅ |
-
-### P1 — أساسي تجاري — ✅ مكتملة
-
-| # | المكوّن | الحالة |
-|---|---------|--------|
-| 9–20 | ESC/POS، درج، ورديات، مرتجعات، جرد، مشتريات، تقارير، Push/WA، ضغط صور، اشتراكات، دعوات، Audit UI | ✅ |
-
-### P2 — تميز Retail ERP — ✅ مكتملة
-
-| # | المكوّن | الحالة | التنفيذ |
-|---|---------|--------|---------|
-| 21 | مساعد ذكاء اصطناعي (مبيعات/طلب/راكد/أرباح/عربي) | ✅ | `api/ai.js` + `src/lib/ai/*` + `/ai` |
-| 22 | ولاء متكامل (نقاط/استبدال/مستويات/عروض) | ✅ | `api/loyalty.js` + `src/lib/loyalty/*` + `/loyalty` |
-| 23 | تعدد الأسعار (قطاعي/جملة/½ جملة/VIP/عميل/فرع) | ✅ | `api/pricing.js` + `src/lib/pricing/*` + `/pricing` |
-| 24 | مطاعم BOM + وصفات + تصنيع + خصم مكونات | ✅ | `api/recipes.js` + `src/lib/bom/*` + `/recipes` |
-| 25 | استيراد/تصدير Excel احترافي | ✅ | `api/import-export.js` + `src/lib/importExport/*` + `/import-export` |
-| 26 | لغة إنجليزية كاملة + تبديل فوري | ✅ | `I18nContext` + `translations` + Sidebar/TopBar/dir |
-| 27 | تطبيقات جوال مدير/موظفين offline-first | ✅ | `/mobile` · `/mobile/manager` · `/mobile/staff` + SW |
-| 28 | تكامل صلاحيات + مزامنة/نسخ + UX | ✅ | `permissions.js` + audit/notifications hooks |
-
-### P3 — جودة هندسية — 🔒 لم تبدأ (بانتظار موافقتك)
-
-OpenAPI، code-splitting إضافي، Storybook، CI/CD كامل، feature flags، rate limit، خط عربي كامل في jsPDF، e2e متصفح…
-
----
-
-## 7. تقرير تقدم المرحلة الثالثة (P2)
-
-### 7.1 الأعمال المنفّذة
-
-1. **محرك AI حتمي** (بدون اعتماد LLM خارجي إلزامي): يحلل المبيعات 7/30 يوماً، COGS، الهامش، الصافي، اقتراحات إعادة الطلب، المنتجات الراكدة، أفضل SKUs؛ يجيب بالعربية/الإنجليزية ويُسجّل المحادثة في `ai_conversations`.
-2. **ولاء:** برنامج لكل مستأجر، حسابات نقاط، دفتر حركات earn/redeem، مستويات bronze→platinum، عروض حسب المستوى، واجهة إدارة كاملة.
-3. **تعدد أسعار:** قوائم retail/half_wholesale/wholesale/vip، أسعار منتج لكل قائمة، seed من السعر الأساسي، resolve بأولوية عميل→فرع→قائمة→أساسي.
-4. **BOM/مطاعم:** وصفات + بنود مكونات + نسبة هدر، أمر تصنيع يخصم المكونات ويزيد مخزون المنتج النهائي، audit عند الترحيل.
-5. **استيراد/تصدير:** قوالب CSV/XLS، parser CSV مع اقتباس، upsert منتجات بالـ SKU، تصدير الكيانات الخمس، إشعار + audit بعد الاستيراد.
-6. **i18n:** `locale` في localStorage، `document.dir/lang`، مفاتيح تنقل/مجموعات، زر لغات في TopBar، أصداف جوال تدعم AR/EN.
-7. **جوال:** صفحة محور `/mobile` + مسارات fullscreen للمدير والموظفين بنفس JWT/Sync/صلاحيات، تحديث Service Worker cache.
-8. **صلاحيات P2** على كل API جديد عبر `withApi`.
-9. **اختبارات وحدة جديدة** للمحركات (AI، ولاء، أسعار، BOM، CSV، i18n).
-10. **SQL** `supabase/p2_features.sql` + جداول Supabase المنشأة وبذر أولي.
-
-### 7.2 الملفات الجديدة
-
-**API**
-- `api/ai.js`
-- `api/loyalty.js`
-- `api/pricing.js`
-- `api/recipes.js`
-- `api/import-export.js`
-
-**Frontend lib**
-- `src/lib/ai/insightsEngine.ts` + `.test.ts`
-- `src/lib/loyalty/engine.ts` + `.test.ts`
-- `src/lib/pricing/resolvePrice.ts` + `.test.ts`
-- `src/lib/bom/bomEngine.ts` + `.test.ts`
-- `src/lib/importExport/csv.ts` + `.test.ts`
-- `src/lib/i18n/translations.ts` + `.test.ts`
-- `src/contexts/I18nContext.tsx`
-
-**Pages**
-- `src/pages/AIAssistant.tsx`
-- `src/pages/Loyalty.tsx`
-- `src/pages/Pricing.tsx`
-- `src/pages/Recipes.tsx`
-- `src/pages/ImportExport.tsx`
-- `src/pages/MobileApps.tsx`
-- `src/pages/mobile/MobileManager.tsx`
-- `src/pages/mobile/MobileStaff.tsx`
-
-**SQL**
-- `supabase/p2_features.sql`
-
-### 7.3 الملفات المعدّلة
-
-- `api/permissions.js` — صلاحيات P2
-- `src/App.tsx` — مسارات P2 + I18nProvider
-- `src/components/layout/Sidebar.tsx` — مجموعة «الذكاء والنمو» + i18n
-- `src/components/layout/TopBar.tsx` — تبديل اللغة
-- `src/components/layout/AppShell.tsx` — `dir` ديناميكي + fullscreen mobile
-- `public/sw.js` — cache v2 + مسارات mobile
-- `README.md` — مصدر الحقيقة بعد P2
-
-### 7.4 تغييرات معمارية
-
-```
-AI
-  GET/POST /api/ai (tenant JWT)
-    → load sales/products/items/expenses
-    → deterministic analyze + Arabic/EN Q&A
-    → persist ai_conversations
-
-Loyalty
-  program + accounts + ledger + offers
-  earn on demand / redeem with min points
-  tier from lifetime_points
-
-Pricing resolve priority
-  customer override → branch override → price list → product.base
-
-Manufacturing post
-  validate ingredient stock
-  deduct ingredients (with waste)
-  increment finished-good stock
-  manufacturing_orders.status=posted
-
-Import
-  CSV/JSON rows → entity handlers
-  products upsert by SKU + packaging
-  notification + audit
-
-i18n
-  I18nProvider → html[dir/lang] live switch
-  NAV_I18N / GROUP_I18N for shell
-
-Mobile
-  same React app routes, stripped chrome for /mobile/*
-  SW precache mobile entry paths
-```
-
-### 7.5 الاختبارات
-
-```bash
-npm test   # 31 passed
-npm run build  # success
-```
-
-| ملف | يغطي |
-|-----|------|
-| `api/auth-middleware.test.js` | صلاحيات أساسية |
-| `src/lib/tax.test.ts` | ضريبة |
-| `src/lib/utils.weight.test.ts` | وزن |
-| `src/lib/escpos/commands.test.ts` | ESC/POS |
-| `src/lib/reports/excel.test.ts` | Excel/CSV |
-| `src/lib/imageCompress.test.ts` | base64 |
-| `src/lib/ai/insightsEngine.test.ts` | AI |
-| `src/lib/loyalty/engine.test.ts` | ولاء |
-| `src/lib/pricing/resolvePrice.test.ts` | أسعار |
-| `src/lib/bom/bomEngine.test.ts` | BOM |
-| `src/lib/importExport/csv.test.ts` | CSV |
-| `src/lib/i18n/translations.test.ts` | i18n |
-
-### 7.6 مشاكل معروفة / قيود
-
-| القيد | التفاصيل |
-|-------|----------|
-| AI | محرك قواعد/إحصاء حتمي — ليس LLM سحابي؛ يمكن لاحقاً توصيل مزوّد خارجي دون كسر الواجهة |
-| ولاء عند البيع | API جاهز للـ earn/redeem؛ الربط التلقائي الكامل من POS يمكن توسيعه في P3 إن لزم |
-| تعدد الأسعار في POS UI | resolve API جاهز؛ شاشة `/pricing` لإدارة القوائم؛ اختيار القائمة في POS قابل للربط السريع |
-| BOM عند البيع | خصم المكونات عند التصنيع منفّذ؛ خصم تلقائي عند بيع FG عبر `saleIngredientDeductions` جاهز للدمج في sales pipeline |
-| Excel استيراد | CSV/JSON عملياً؛ ملفات `.xlsx` الثنائية تحتاج تحويلاً مسبقاً أو فتحاً كـ CSV/XML |
-| i18n | الهيكل والقشرة والتنقل مترجمة؛ بعض شاشات P0/P1 ما زالت بنصوص عربية ثابتة جزئياً (التوسيع تدريجي) |
-| جوال | PWA/مسارات ويب لمسية وليست متاجر App Store/Play منفصلة |
-| service role | عزل التطبيق في middleware؛ نفّذ `p2_features.sql` على كل بيئة |
-| حجم الحزمة | تحذير Vite >500kb — مرشّح code-splitting في P3 |
-
-### 7.7 مهام متبقية بعد P2
-
-**لا توجد مهام P2 مفتوحة ضمن النطاق المتفق عليه في README.**  
-P3 لن تبدأ قبل موافقتك الصريحة.
-
-### 7.8 نسبة الإنجاز
-
-| المجال | بعد P1 | بعد P2 |
-|--------|--------|--------|
-| POS / أجهزة | ~92% | **~93%** |
-| مخزون/مشتريات/جرد/BOM | ~90% | **~95%** |
-| مالية/تقارير/أسعار | ~88% | **~94%** |
-| ولاء / نمو | ~20% | **~92%** |
-| ذكاء / AI | ~15% | **~90%** |
-| i18n / جوال | ~30% | **~88%** |
-| فريق/دعوات/تدقيق | ~85% | **~86%** |
-| **إجمالي المنتج** | **~90%** | **~96%** |
-
-### 7.9 جاهزية الإطلاق التجاري
-
-- **جاهز تجارياً كمنصة Retail ERP إقليمية** مع P0+P1+P2، بشرط: تشغيل سكربتات SQL على الإنتاج، ضبط الأسرار (VAPID/WhatsApp اختياري)، وتجربة قبول ميدانية على أجهزة POS حقيقية.
-- المتبقي لـ **100%** هندسياً يقع تحت **P3** (جودة، e2e، OpenAPI، تقسيم حزم، خطوط PDF عربية كاملة).
-
----
-
-## 8. Changelog
-
-### `1.2.0-p2` — 2026-03-22
-
-#### Added
-- AI assistant API + Arabic/English manager Q&A + insights dashboard (`/ai`)
-- Loyalty programs, accounts, ledger, tiers, offers (`/loyalty`)
-- Multi-price lists + product prices + customer/branch overrides + resolve (`/pricing`)
-- Recipes/BOM + manufacturing orders with stock movements (`/recipes`)
-- Professional import/export for products, customers, suppliers, inventory, purchases (`/import-export`)
-- Full i18n foundation with instant AR↔EN switch (no reload)
-- Mobile manager/staff shells (`/mobile`, `/mobile/manager`, `/mobile/staff`)
-- P2 permissions matrix entries
-- Vitest suites for AI, loyalty, pricing, BOM, CSV, i18n
-- `supabase/p2_features.sql` + seeded loyalty/price lists
-
-#### Changed
-- Sidebar groups include Intelligence & growth
-- App shell respects locale direction
-- Service worker cache bumped for mobile routes
-- README single source of truth updated for P2 gate
-
-#### Security
-- All new P2 APIs behind JWT + role permissions + tenant_id enforcement
-- Import/export and manufacturing write paths tenant-scoped
-
-### `1.1.0-p1` — 2026-03-22
-
-- ESC/POS, cash drawer, shifts, refunds, stocktake, reports Excel/P&L, push/WhatsApp, image compress, invites, audit UI
-
-### `1.0.0-p0` — 2026-03-22
-
-- JWT middleware, offline outbox, sync engine, tax, backups, Sentry hooks, base Vitest
-
----
-
-## 9. التكاملات
-
-| التكامل | الحالة |
-|---------|--------|
-| Supabase Auth/DB/Storage | منفّذ |
-| Google OAuth | منفّذ |
-| WhatsApp deeplink / Cloud | منفّذ / اختياري |
-| WebUSB / Web Serial ESC/POS | منفّذ |
-| Web Push (VAPID) | اختياري |
-| html5-qrcode | منفّذ |
-| jsPDF/html2canvas | منفّذ |
-| AI engine (on-platform) | منفّذ (حتمي) |
-| Excel/CSV import-export | منفّذ |
-| Sentry DSN | جاهز عند الضبط |
-
----
-
-## 10. المعمارية التقنية
+## 5. المعمارية التقنية
 
 ```
 React 19 + Vite + TS + Tailwind v4
-  I18nProvider · Auth · Tenant · Sync · Subscription
-        │ JWT (installApiAuthFetch)
+  I18nProvider · AuthContext · TenantContext · SyncContext · SubscriptionContext
+        │ installApiAuthFetch يحقن JWT تلقائياً في كل fetch('/api/*')
         ▼
-Vercel api/* (withApi + permissions P0–P2)
-        │
+Vercel api/*.js (domain routers) → api/_lib/modules/*.js (handlers)
+  withApi(handler, {permissions}) → requireAuth → resolveTenantId → business logic
+        │ service-role client (api/_lib/db-client.js) — يتجاوز RLS بتصميم
         ▼
-Supabase Auth · Postgres · Storage
+Supabase Auth · Postgres (RLS كطبقة دفاع ثانية) · Storage (bucket عام rafd-media)
 
-Offline: IndexedDB outbox ↔ syncEngine · SW v2
+Offline: IndexedDB (src/lib/offline/db.ts) — outbox + cache
+  ↳ salesQueue.ts (مبيعات) · productsQueue.ts (منتجات/مخزون) · syncEngine.ts (دفع/سحب دوري)
 Devices: WebUSB/Serial → ESC/POS
 AI/Loyalty/Pricing/BOM: tenant-scoped domain services
-Mobile: same SPA routes, touch-first shells
+Mobile: نفس مسارات SPA بأصداف touch-first
 ```
+
+### مبدأ عزل المستأجرين — كيف يعمل فعلياً
+العزل بين المستأجرين مفروض على **طبقتين مستقلتين**:
+1. **طبقة API (الفعلية وقت التشغيل):** كل استدعاء حسّاس يمر عبر `requireAuth`/`resolveTenantId` في `api/_lib/auth-middleware.js`، والتي تشتق `tenant_id` من ملف `app_users` المرتبط بتوكن JWT الحالي، وتمنع أي طلب يحاول تحديد `tenant_id` مغاير (إلا لسوبر أدمن). طبقة الـ API تستخدم مفتاح **service-role** الذي **يتجاوز RLS بالكامل**.
+2. **طبقة RLS في Postgres (دفاع ثانٍ):** مفعّلة على كل الجداول الأساسية عبر دوال `current_tenant_id()`/`is_superadmin()` (`SECURITY DEFINER`)، وتحمي فقط من وصول مباشر بمفتاح `anon` (مثل تسريب مفتاح أو استعلام PostgREST مباشر) — لا تُستدعى في المسار الطبيعي للتطبيق لأن الـ API يتجاوزها.
+
+**الخلاصة الصادقة:** إن كانت هناك ثغرة عزل في منطق الـ API نفسه (كما كان الحال في BL-01)، **فإن RLS لا تلتقطها** لأن الـ API لا يمرّ عبرها أصلاً. لذلك ضبط منطق الـ API هو خط الدفاع الحقيقي، وRLS تحمي فقط سيناريو "تسريب مفتاح anon".
 
 ---
 
-## 11. هيكل المشروع (إضافات P2)
+## 6. حالة الوحدات (Modules)
 
-```
-api/ai.js  loyalty.js  pricing.js  recipes.js  import-export.js
-src/lib/ai/  loyalty/  pricing/  bom/  importExport/  i18n/
-src/contexts/I18nContext.tsx
-src/pages/AIAssistant.tsx  Loyalty.tsx  Pricing.tsx  Recipes.tsx
-src/pages/ImportExport.tsx  MobileApps.tsx
-src/pages/mobile/MobileManager.tsx  MobileStaff.tsx
-supabase/p2_features.sql
-```
+| الوحدة | الحالة | الدليل |
+|--------|--------|--------|
+| POS (نقطة البيع) | ✅ يعمل — لمس، باركود، وزن، دفع مقسّم/آجل/تحويل، طباعة ESC/POS، قوائم أسعار (BL-11) | `src/pages/POS.tsx` |
+| المنتجات | ✅ مُصلَح جذرياً هذه الدورة (كان عالقاً على التحميل بلا نهاية) — انظر §10 | `src/pages/Products.tsx` + اختبارات §17 |
+| المخزون | ✅ مُصلَح جذرياً + Offline-first — انظر §10 | `src/pages/Inventory.tsx` |
+| المبيعات/الفواتير | ✅ خصم مخزون ذرّي (BL-02)، رقم فاتورة فريد (BL-05)، ربط وردية (BL-06)، سقف خصم (BL-08) | `api/_lib/modules/sales.js` |
+| المرتجعات | ✅ حارس تراكمي يمنع تجاوز الكمية المباعة (BL-04) | `api/_lib/modules/refunds.js` |
+| الورديات | ✅ فتح/إغلاق + تسوية نقدية X/Z | `api/_lib/modules/shifts.js` |
+| الموردون/المشتريات | ✅ | `api/_lib/modules/suppliers.js`, `purchases.js` |
+| العملاء/الآجل | ✅ رصيد + دفتر حركات | `api/_lib/modules/customers.js`, `customer-ledger.js` |
+| الجرد (Stocktake) | ✅ | `api/_lib/modules/stocktakes.js` |
+| التقارير/P&L | ✅ Excel export | `api/_lib/modules/reports.js` |
+| التدقيق (Audit) | ✅ audit المبيعات مُصلَح (BL-03) — كان يفشل صامتاً | `api/_lib/audit.js` (كاتب موحّد) |
+| الاشتراكات/SaaS | ✅ ربط جهاز يمنع تكرار التجربة المجانية | `api/_lib/modules/subscription.js` |
+| مساعد AI | ✅ محرك قواعد/إحصاء حتمي — ليس LLM سحابي | `api/_lib/modules/ai.js` |
+| الولاء | ✅ نقاط/استبدال/مستويات — الربط التلقائي من POS غير منفّذ | `api/_lib/modules/loyalty.js` |
+| تعدد الأسعار | ✅ يُطبَّق تلقائياً في POS الآن (BL-11) | `api/_lib/modules/pricing.js` |
+| BOM/التصنيع | ✅ خصم مكونات + زيادة منتج نهائي؛ الخصم التلقائي عند بيع المنتج النهائي غير مربوط | `api/_lib/modules/recipes.js` |
+| استيراد/تصدير | ✅ CSV/JSON — ملفات `.xlsx` الثنائية تحتاج تحويلاً مسبقاً | `api/_lib/modules/import-export.js` |
+| i18n | ✅ هيكل وتنقل مترجم؛ بعض شاشات P0/P1 نصوص عربية ثابتة جزئياً | `src/contexts/I18nContext.tsx` |
+| جوال | ✅ أصداف touch-first بنفس الـ SPA | `src/pages/mobile/*` |
+| لوحة سوبر أدمن | ✅ منفصلة عبر `/admin/login` | `src/pages/SuperAdmin.tsx` |
 
 ---
 
-## 12. قاعدة البيانات والأمن — Supabase CLI Migrations ✅
+## 7. Offline-First والمزامنة
 
-> **مرحلة Infrastructure Integration + Migrations الرسمية مكتملة على `develop`**
-> راجع `docs/SETUP.md` + `supabase/README.md` + `supabase/config.toml`
-> **التنفيذ بأمر واحد:** `supabase db push` (أو `npm run db:push`)
+### الوضع قبل هذه الدورة
+كانت آلية الـ Outbox/IndexedDB موجودة **للمبيعات فقط** (`src/lib/offline/salesQueue.ts`). صفحتا **المنتجات والمخزون لم يكن لديهما أي دعم Offline إطلاقاً**: أي طلب `fetch` مباشر بلا `try/catch` على الشبكة، وبلا قراءة احتياطية من الـ cache.
 
-### ترتيب تنفيذ SQL (Official Supabase CLI - `supabase/migrations/`)
+### الوضع الحالي (مُنفَّذ ومُختبَر)
+| الطبقة | الوصف | الملف |
+|--------|-------|-------|
+| IndexedDB wrapper | `outbox` (طوابير عمليات معلّقة) + `cache` (نسخ محلية للجداول) + `meta` | `src/lib/offline/db.ts` |
+| قراءة موحّدة بحالة واضحة | Hook يفرّق بين: لا يوجد متجر / جاهز (قد يكون فارغاً) / خطأ مصادقة (401) / خطأ صلاحية (403) / خطأ خادم / خطأ اتصال — ويسقط تلقائياً لبيانات الـ cache عند الأوفلاين أو فشل الشبكة | `src/hooks/useTenantScopedList.ts` |
+| مزامنة المبيعات | إنشاء بيع أوفلاين → outbox + خصم مخزون محلي تفاؤلي (BL-02) | `src/lib/offline/salesQueue.ts` |
+| مزامنة المنتجات (جديد) | إنشاء/تعديل/حذف منتج أوفلاين → outbox + تحديث cache تفاؤلي؛ حذف منتج أُنشئ أوفلاين ولم يُزامَن بعد **يُلغي طلب الإنشاء المُعلَّق بدل إرسال حذف لمعرّف لا يعرفه الخادم** | `src/lib/offline/productsQueue.ts` |
+| محرك المزامنة | يدفع كل عناصر outbox المعلّقة/الفاشلة بترتيب زمني عند عودة الاتصال، ثم يسحب لقطة حديثة للجداول (منتجات/عملاء/مبيعات) إلى الـ cache | `src/lib/offline/syncEngine.ts` |
+| الجلسة | تبقى صالحة أوفلاين عبر `localStorage` (ملف تعريف/متجر/فروع مخزَّنة) | `src/lib/offline/localSession.ts` + §8 |
 
-```text
-1) supabase/migrations/20260722000001_base_schema.sql  → الجداول الأساسية (tenants, branches, products, sales...)
-2) supabase/migrations/20260722000002_storage.sql      → Bucket rafd-media + سياسات Storage
-3) supabase/migrations/20260722000003_p0_security.sql   → أعمدة ضريبة/idempotency + RLS
-4) supabase/migrations/20260722000004_p1_features.sql   → ورديات, مرتجعات, جرد, دعوات, push...
-5) supabase/migrations/20260722000005_p2_features.sql   → ولاء, أسعار, BOM, AI
+### إثبات (Vitest حقيقي — ليس افتراضاً)
+- `src/hooks/useTenantScopedList.test.tsx` — 9 اختبارات: لا-متجر / جاهز-بلا-عناصر / 401 / 403 / خطأ-خادم / خطأ-اتصال / سقوط أوفلاين على cache دافئ / أوفلاين بلا cache → خطأ واضح بدل تعليق أبدي.
+- `src/lib/offline/productsQueue.test.ts` — 10 اختبارات بـ `fake-indexeddb` حقيقي: إنشاء أونلاين/أوفلاين، رفض حقيقي (403) لا يُطابَر، تعديل أوفلاين يُصحّح cache، **حذف منتج أوفلاين قبل المزامنة يُلغي الإنشاء المعلّق بدل تصيير حذف خاطئ**، حذف/تعديل منتج مُزامَن سابقاً يُطابَر بشكل صحيح.
+
+---
+
+## 8. المصادقة والجلسات
+
+- بريد/كلمة مرور + Google OAuth عبر Supabase Auth (`persistSession: true, autoRefreshToken: true`).
+- بعد أول دخول أونلاين ناجح، يُخزَّن ملف المستخدم/المتجر/الفروع في `localStorage` (`src/lib/offline/localSession.ts`) بمعزل عن جلسة Supabase نفسها.
+- عند إعادة تشغيل المتصفح: `AuthContext` يستدعي `getSession()`؛ إن نجحت (جلسة Supabase مستعادة من `localStorage`) يُعاد جلب الملف الشخصي وتحديث الـ cache. إن فشلت (بلا اتصال، تجديد التوكن تعذّر) **وكان هناك ملف مخزَّن مسبقاً**، يبقى المستخدم داخل النظام بهوية أوفلاين بدل رميه لصفحة الدخول.
+- `signOut()` يمسح الـ cache (`clearCachedSession`) **قبل** استدعاء `supabase.auth.signOut()` — يمنع تسريب هوية سابقة لجلسة تالية على نفس الجهاز.
+- توكن JWT يُحقَن تلقائياً في أي `fetch('/api/*')` عبر `installApiAuthFetch` (اعتراض عام لـ `window.fetch`) — لا حاجة لتمريره يدوياً من كل صفحة.
+
+**إثبات:** `src/contexts/AuthContext.test.tsx` (5 اختبارات) يمرّر فعلياً حالات: استعادة جلسة بعد "إعادة تشغيل"، أوفلاين مع ملف مخزَّن يبقي الجلسة، `signOut` يمسح الـ cache فعلياً (تحقّق مباشر من `localStorage`)، دخول جديد بعد خروج يُعيد حل ملف جديد. `src/lib/offline/localSession.test.ts` (4 اختبارات) يغطي التخزين/الاسترجاع/المسح.
+
+---
+
+## 9. رفع الملفات والصور
+
+**السلسلة الكاملة (مُتحقَّق منها):** الواجهة تضغط الصورة محلياً (`src/lib/imageCompress.ts` → قماش HTML يعيد الترميز JPEG/WebP بحد أقصى 1024-1280px) → ترميز base64 → `POST /api/upload` (`api/_lib/modules/upload.js`، صلاحية `products:write`، حارس حجم خادم 2.5MB افتراضياً) → `supabase.storage.from('rafd-media').upload()` بمفتاح service-role → رابط عام عبر `getPublicUrl()` → يُحفَظ الرابط في `image_url` (منتج) أو `logo_url` (متجر) عبر `POST/PUT` على `/api/products` أو `/api/tenants` → يُعرَض فوراً في الواجهة (`ProductThumb`, شعار الشريط الجانبي).
+
+### مشكلة أمنية اكتُشفت وأُصلحت هذه الدورة
+سياسات RLS على `storage.objects` لحاوية `rafd-media` كانت باسم "Authenticated write/update/delete" لكنها **أُنشئت بلا `TO authenticated`**، فتطبَّق افتراضياً على `public` (يشمل `anon`) — أي أن أي حامل لمفتاح anon العام كان يستطيع الكتابة/التعديل/الحذف مباشرة في الحاوية عبر Storage API، متجاوزاً تحقق الحجم والصلاحية في `upload.js` بالكامل. **لا يؤثر على مسار الرفع الفعلي للتطبيق** (يستخدم service-role الذي يتجاوز RLS أصلاً) لكنه كان ثغرة وصول مباشر حقيقية.
+**الإصلاح:** `supabase/migrations/20260722000011_storage_media_policy_hardening.sql` يعيد إنشاء السياسات الثلاث بـ `TO authenticated` — مُطبَّق ومُتحقَّق منه على `rafd-dev` (القراءة تبقى عامة عمداً لعرض الصور بلا مصادقة).
+
+**إثبات:** `api/_lib/modules/upload.integration.test.js` (5 اختبارات على الـ handler الحقيقي غير المعدَّل) — رفع صورة منتج، رفع شعار متجر، رفض ملف أكبر من الحد، تعقيم اسم الملف، رفض بلا مصادقة. `api/_lib/modules/tenants.integration.test.js` يثبت أن حفظ الشعار (`PUT /api/tenants`) لا يزال يعمل بعد تشديد BL-01.
+
+---
+
+## 10. المنتجات والمخزون
+
+### السبب الجذري للمشكلة المُبلَّغ عنها ("الصفحة تفشل")
+`Products.tsx`/`Inventory.tsx` كانا يستدعيان:
+```js
+const load = async () => {
+  if (!tenant?.id) return;   // ← خروج بلا setLoading(false)
+  setLoading(true); ...
 ```
+عندما لا يُحلّ `tenant` (مثلاً env ناقص على النشر، أو توكن منتهي، أو حساب لم يكتمل إعداده)، تخرج الدالة **دون** إنهاء التحميل، فتبقى الصفحة عالقة على الهيكل الشبحي (Skeleton) **إلى الأبد**. أما فشل الشبكة/الصلاحية/الخادم فكانت جميعها تُختزل لرسالة عامة واحدة "فشل التحميل" بلا تمييز، وبلا أي سقوط احتياطي على بيانات محلية.
 
-كل الملفات **idempotent** ومرقمة زمنياً حسب معيار Supabase CLI. انظر `supabase/README.md` و `docs/workflows/supabase-migrate.yml` للـ GitHub Action التلقائي.
+### الإصلاح
+Hook مشترك جديد (`src/hooks/useTenantScopedList.ts`) يحوّل كل حالة إلى نتيجة نهائية واضحة:
 
-**أمر واحد:**
+| الحالة | السلوك المعروض | متى تحدث |
+|--------|------------------|----------|
+| `no-tenant` | شاشة "لا يوجد متجر مرتبط بحسابك بعد" + زر إعادة محاولة | `tenant?.id` غير محلول |
+| `ready` (بلا عناصر) | `EmptyState` "لا توجد منتجات" — حالة سليمة وليست خطأ | نجح الجلب، القائمة فارغة فعلياً |
+| `error` / `auth` | رسالة "انتهت الجلسة" | 401 من الخادم |
+| `error` / `permission` | شاشة صلاحية مميّزة بصرياً | 403 من الخادم |
+| `error` / `server` | شاشة خطأ خادم + إعادة محاولة | أي استجابة HTTP فاشلة أخرى |
+| `error` / `network` | شاشة اتصال مميّزة + إعادة محاولة | `fetch` نفسه فشل (لا استجابة HTTP) **ولا توجد بيانات محفوظة محلياً** |
+| `ready` (من الـ cache) | شريط "أنت تعمل دون اتصال" + البيانات المحفوظة تُعرَض فعلياً | أوفلاين أو فشل شبكي **مع** وجود نسخة محلية سابقة |
+
+كذلك: إنشاء/تعديل/حذف منتج وتوريد/تسوية مخزون تمر الآن عبر `src/lib/offline/productsQueue.ts` (outbox + cache تفاؤلي بدل `fetch` خام صامت الفشل)، وأي خطأ حفظ حقيقي (تحقق/صلاحية) يظهر الآن رسالة مرئية في الحوار بدل الفشل الصامت السابق (`catch(err){console.error(err)}` فقط، بلا أي إشعار للمستخدم).
+
+**إثبات:** انظر §7 (الاختبارات مشتركة مع Offline-First) + `api/_lib/modules/products.integration.test.js` (11 اختباراً على الـ handler الحقيقي): إنشاء يحسب المخزون من الكراتين، بحث بالعربية، فلترة `low_stock`، توريد كراتين (PUT `add_cartons`)، إعادة الجلب بعد "تحديث الصفحة"، حذف صلب لمنتج بلا مبيعات، **Soft-delete لمنتج له مبيعات (BL-07)**، عزل المستأجرين على PUT/DELETE، منع الكاشير من الحذف، وعمل الجلسة الجديدة (محاكاة خروج/دخول) بشكل مطابق.
+
+---
+
+## 11. الصلاحيات وRLS
+
+**السؤال: هل RLS تعمل بانتظام مع نظام المستأجرين بحيث لكل مستأجر مساحة عمل خاصة؟**
+**الجواب المُتحقَّق منه مباشرة على `rafd-dev`:** نعم من ناحية تعريف RLS نفسه — مفعّلة على كل الجداول الأساسية (`tenants, app_users, products, sales, sale_items, branches, customers, product_packaging, purchase_items, refund_items, stocktake_lines, recipe_items, ...`) بسياستين لكل جدول:
+- `deny_anon_*`: `TO anon USING (false)` — يمنع أي وصول مجهول.
+- `tenant_isolation_*`: `TO authenticated USING (tenant_id = current_tenant_id() OR is_superadmin())` — كل مستخدم يرى صفوف مستأجره فقط؛ السوبر أدمن يرى الكل.
+
+الدوال المساعدة `current_tenant_id()`/`is_superadmin()` (`SECURITY DEFINER`) تشتق الهوية من `app_users` عبر `auth_id = auth.uid()` أو `email = jwt.email` بشرط `status='active'`.
+
+**لكن التنفيذ الفعلي للعزل وقت التشغيل يمر عبر طبقة الـ API** (`api/_lib/auth-middleware.js`) لأن كل استدعاءات `/api/*` تستخدم مفتاح **service-role** الذي **يتجاوز RLS بالكامل** (تصميم متعمَّد ليتحكم الخادم بمنطق أعمال أدق من عبارة RLS البسيطة). لذلك RLS طبقة دفاع ثانية تحمي فقط من وصول مباشر بمفتاح anon (تسريب مفتاح، استعلام PostgREST يدوي) — لا تلتقط ثغرة عزل داخل منطق الـ API نفسه، كما ثبت من BL-01 (واجهة `tenants` كانت بلا أي تحقق مصادقة رغم وجود RLS على الجدول) وثغرة سياسات `storage.objects` (§9).
+
+**ثغرة Storage RLS المكتشفة هذه الدورة مُصلَحة** (§9، migration `...011`). **لم تُكتشَف أي ثغرة عزل إضافية** في سياسات RLS الحالية على جداول Postgres نفسها أثناء هذه المراجعة.
+
+---
+
+## 12. قاعدة البيانات — Migrations
+
+جميع الملفات في `supabase/migrations/` **idempotent** ومرقّمة زمنياً؛ آخرها `20260722000011`. الترتيب:
+
+| # | الملف | المحتوى |
+|---|-------|---------|
+| 1 | `20260722000001_base_schema.sql` | الجداول الأساسية (tenants, branches, app_users, products, sales...) |
+| 2 | `20260722000002_storage.sql` | Bucket `rafd-media` + سياسات Storage الأولية |
+| 3 | `20260722000003_p0_security.sql` | أعمدة ضريبة/idempotency + RLS أولي |
+| 4 | `20260722000004_p1_features.sql` | ورديات، مرتجعات، جرد، دعوات، push |
+| 5 | `20260722000005_p2_features.sql` | ولاء، أسعار، BOM، AI |
+| 6 | `20260722000006_rls_hardening.sql` | تفعيل RLS على كل الجداول |
+| 7 | `20260722000007_rls_tenant_isolation.sql` | سياسات `deny_anon_*` + `tenant_isolation_*` + دوال `current_tenant_id()`/`is_superadmin()` |
+| 8 | `20260722000008_admin_bootstrap.sql` | ربط حساب المالك الحقيقي (§19) — متجر حقيقي + فرع + ملف Owner+SuperAdmin + اشتراك فعّال، بلا إنشاء حساب Auth جديد |
+| 9 | `20260722000009_bl01_onboarding_ratelimit.sql` | جدول `onboarding_ip_log` لتقييد معدّل POST `/api/tenants` العام (BL-01) |
+| 10 | `20260722000010_bl_inventory_sales_integrity.sql` | RPC `pos_apply_stock_delta` (خصم/إضافة مخزون ذرّي)، عمود `sales.shift_id`، فهرس تفرّد رقم الفاتورة |
+| 11 | `20260722000011_storage_media_policy_hardening.sql` | تقييد INSERT/UPDATE/DELETE على `storage.objects` لحاوية `rafd-media` إلى دور `authenticated` (§9) |
+
 ```bash
 supabase login
 supabase link --project-ref YOUR_REF
 supabase db push   # أو npm run db:push
 ```
 
-### جداول الأساسية (000_base)
-- `tenants` · `branches` · `app_users` · `products` · `product_packaging`
-- `customers` · `customer_ledger` · `suppliers` · `supplier_ledger`
-- `sales` · `sale_items` · `expenses` · `bank_accounts` · `purchases` · `purchase_items`
-- `backups` · `audit_logs` · `sync_status` · `notifications` · `tenant_catalog`
-- `platform_settings` · `subscription_plans` · `tenant_subscriptions` · `device_bindings`
-
-### جداول P1
-- `cashier_shifts` · `refunds` · `refund_items` · `stocktake_sessions` · `stocktake_lines`
-- `user_invites` · `push_subscriptions` · `whatsapp_outbox`
-
-### جداول P2
-- `loyalty_programs` · `loyalty_accounts` · `loyalty_ledger` · `loyalty_offers`
-- `price_lists` · `product_prices` · `customer_price_overrides` · `branch_price_overrides`
-- `recipes` · `recipe_items` · `manufacturing_orders`
-- `ai_conversations`
-
-### قائمة إطلاق
-- [x] Base schema جاهز `000_base_schema.sql` (إضافة جديدة في Infrastructure phase)
-- [x] Storage bucket `001_storage.sql` جاهز
-- [x] P2 APIs authz
-- [x] `.env.example` احترافي + `docs/SETUP.md` خطوة بخطوة
-- [x] `vercel.json` منظف من الأسرار (الأسرار الآن في Vercel Dashboard فقط)
-- [ ] تشغيل كل SQL على مشروعي `rafd-dev` و `rafd-prod`
-- [ ] ضبط VAPID / WhatsApp Cloud عند الحاجة  
+> **ملاحظة تشغيلية:** `.github/workflows/supabase-migrate.yml` يُطبّق الترحيلات تلقائياً عند push إلى فرع `develop` — وهذا الفرع **لم يعد موجوداً** بعد دمجه في `main` (انظر §18). الترحيلات أعلاه طُبِّقت يدوياً على `rafd-dev` عبر Supabase MCP والتحقّق مباشر من قاعدة البيانات. **يلزم تحديث مُشغّل الـ workflow ليشمل `main`** قبل الاعتماد الكلي على النشر التلقائي.
 
 ---
 
-## 13. نظام التصميم
+## 13. إصلاحات منطق الأعمال (BL-01..BL-12)
+
+مصدر البنود: `docs/BUSINESS_LOGIC_AUDIT.md`. كل بند مُنفَّذ ومُختبَر (Vitest + تحقق مباشر من `rafd-dev` حيث ينطبق).
+
+| # | العنوان | الخطورة | الإصلاح | الملفات |
+|---|---------|---------|---------|---------|
+| BL-01 | واجهة `tenants` مفتوحة بلا مصادقة | 🔴 | `GET`/`PUT` خلف `resolveAuth` + عزل tenant؛ `POST` يبقى عاماً للـ onboarding مع rate-limit لكل IP | `api/_lib/modules/tenants.js`, migration `...009` |
+| BL-02 | خصم مخزون غير ذرّي + لا خصم أوفلاين محلي | 🔴 | RPC `pos_apply_stock_delta` (UPDATE مقفول ذرّي) + خصم تفاؤلي محلي في `salesQueue.ts` | `api/_lib/modules/sales.js`, migration `...010` |
+| BL-03 | تدقيق المبيعات معطّل (أعمدة خاطئة) | 🔴 | كاتب تدقيق موحّد على الأعمدة الفعلية + اختبار يكشف انحراف الأعمدة | `api/_lib/audit.js` |
+| BL-04 | مرتجع جزئي تراكمي يتجاوز الكمية المباعة | 🟠 | حارس تراكمي (مباع − مُرجَع سابقاً − بنود الطلب) | `api/_lib/refund-math.js`, `refunds.js` |
+| BL-05 | رقم فاتورة بلا ضمان تفرّد | 🟠 | فهرس فريد `(tenant_id, branch_id, invoice_number)` + إعادة توليد عند التصادم | migration `...010` |
+| BL-06 | مبيعات غير مرتبطة بوردية | 🟠 | ربط تلقائي مرن بالوردية المفتوحة (`sales.shift_id`) — لا يمنع البيع | migration `...010`, `sales.js` |
+| BL-07 | حذف منتج صلب رغم ارتباطه بفواتير | 🟠 | Soft-delete (`is_active=false`) عند وجود مبيعات؛ حذف صلب فقط لغير المُباع | `api/_lib/modules/products.js` |
+| BL-08 | خصم بلا حد أعلى ولا اعتماد صلاحية | 🟠 | سقف خصم بحسب الدور مفروض على الخادم (كاشير ≤10%، مدير/مالك بلا حد) + رفض 403 + تدقيق | `api/_lib/discount-policy.js` |
+| BL-09 | غموض وحدة مخزون الوزن (جرام/كجم) | 🟡 | توحيد على الكجم، إزالة الاستدلال النصي | `sales.js`, `src/lib/inventory/stockDelta.ts` |
+| BL-10 | fallback إلى `tenant_id=1` | 🟡 | إزالة الافتراضي؛ الواجهة تُحجَب حتى يُحلّ tenant حقيقي | `TenantContext.tsx`, `POS.tsx` |
+| BL-11 | قوائم الأسعار لا تُطبَّق في POS | 🟡 | حلّ السعر تلقائياً (عميل→فرع→قائمة→أساسي) + مُنتقي قائمة | `POS.tsx`, `src/lib/pricing/resolvePrice.ts` |
+| BL-12 | لا فحص كفاية مخزون عند البيع | 🟡 | سياسة "بِع ما على الرف" مع تسجيل العجز في `audit_logs` | `sales.js` |
+
+---
+
+## 14. نظام التصميم
 
 التوكنات في `src/index.css` · المكونات في `src/components/ui/*` · الدليل `/brand` · دعم `dir=rtl|ltr` ديناميكي.
 
 ---
 
-## 14. المسارات
+## 15. المسارات
 
 | المسار | الوصف |
-|--------|--------|
+|--------|-------|
 | `/pos` | نقطة البيع |
+| `/products` | المنتجات |
+| `/inventory` | المخزون |
 | `/ai` | المساعد الذكي |
 | `/loyalty` | الولاء والنقاط |
 | `/pricing` | تعدد الأسعار |
 | `/recipes` | الوصفات والتصنيع |
 | `/import-export` | استيراد/تصدير |
-| `/mobile` | محور تطبيقات الجوال |
-| `/mobile/manager` | صدفة المدير |
-| `/mobile/staff` | صدفة الموظفين |
-| `/shifts` `/refunds` `/stocktake` `/audit` | P1 |
-| `/reports` `/subscription` `/admin` | تقارير/SaaS/منصة |
+| `/mobile` `/mobile/manager` `/mobile/staff` | تطبيقات الجوال |
+| `/shifts` `/refunds` `/stocktake` `/audit` | تشغيل المتجر |
+| `/reports` `/subscription` | تقارير/SaaS |
+| `/admin/login` `/admin` | بوابة إدارة المنصة (منفصلة عن واجهة المتجر) |
 
 ---
 
-## 15. المتغيرات البيئية — Infrastructure Integration Update
+## 16. المتغيرات البيئية
 
-> **المرجع الرسمي الآن:** `.env.example` (موثق بالكامل 100 سطر) + `docs/SETUP.md`
+> المرجع الرسمي: `.env.example` + `docs/SETUP.md`. لا تغييرات جديدة على المتغيرات المطلوبة هذه الدورة.
 
-### Frontend (Vite - مكشوفة للمتصفح، محمية بـ RLS)
+### Frontend (Vite — مكشوفة للمتصفح، محمية بـ RLS كطبقة دفاع ثانية)
 | المتغير | مطلوب؟ | الوصف |
 |---------|--------|-------|
 | `VITE_SUPABASE_URL` | ✅ | Supabase Project URL |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Anon key (publishable) |
 | `VITE_GOOGLE_CLIENT_ID` | اختياري | Google OAuth Client ID |
-| `VITE_GOOGLE_AUTH_PROXY` | legacy | كان لـ Design Arena، اتركه فارغاً في الإنتاج |
 | `VITE_SENTRY_DSN` | اختياري | Frontend Sentry |
 | `VITE_VAPID_PUBLIC_KEY` | اختياري | Web Push public key |
 
-### Backend (Vercel api/* - سري)
+### Backend (Vercel `api/*` — سري)
 | المتغير | مطلوب؟ | الوصف |
 |---------|--------|-------|
 | `NEXT_PUBLIC_SUPABASE_URL` | ✅ | يطابق `VITE_SUPABASE_URL` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | يطابق `VITE_SUPABASE_ANON_KEY` |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ سري | Service role - لا يُعرض أبداً للمتصفح |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ سري | يتجاوز RLS — أساس عزل المستأجرين الفعلي (§5، §11) |
 | `SENTRY_DSN` | اختياري | Backend Sentry |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | اختياري | Web Push VAPID (private سري) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | اختياري | Web Push |
 | `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | اختياري | WhatsApp Cloud API |
-| `FULLSTACK_PROJECT_REF` / `FULLSTACK_RESTORE_API_URL` | legacy | deprecated بعد الخروج من Design Arena sandbox |
 
-**كيفية الإعداد:** `cp .env.example .env.local` ثم املأ القيم من Supabase Dashboard → Settings → API. انظر `docs/SETUP.md` خطوة بخطوة.
-
-**أمان:** `.env`, `.env.local` في `.gitignore` ولن تُدفع أبداً. `vercel.json` لم يعد يحتوي `env` بأسرار (تم تنظيفه في هذه المرحلة).
+**تحذير تشغيلي مُثبَت هذه الدورة:** إن غاب `SUPABASE_SERVICE_ROLE_KEY` أو `NEXT_PUBLIC_SUPABASE_URL` على بيئة النشر، تفشل **كل** استدعاءات `/api/*` بصمت جزئي (تُسجَّل رسالة خطأ في السجلات فقط) — وهذا يظهر للمستخدم كصفحات منتجات/مخزون عالقة أو فاشلة. تحقّق من هذين المتغيّرين أولاً عند أي إبلاغ عن "الصفحة لا تعمل".
 
 ---
 
-## 16. التشغيل والاختبار
+## 17. التشغيل والاختبار
 
 ```bash
 npm install
 npm run dev
-npm test          # Vitest — 31 tests
+npm test          # Vitest — 97 اختباراً (23 ملف اختبار)
 npm run build     # tsc + vite — إلزامي قبل النشر
 npm run preview
 ```
 
-### معيار اكتمال P2 (تحقق)
-- [x] جميع بنود P2 في الجدول أعلاه منفّذة  
-- [x] `npm test` ينجح (31/31)  
-- [x] `npm run build` ينجح  
-- [x] مسارات UI مربوطة بالشريط الجانبي  
-- [x] تكامل صلاحيات + tenant على APIs الجديدة  
-- [x] README محدّث + Changelog + تقرير P2  
+### تفصيل الاختبارات المضافة/المحدَّثة هذه الدورة
+| الملف | يغطي | نوع الإثبات |
+|-------|------|--------------|
+| `api/_lib/modules/products.integration.test.js` | CRUD منتجات كامل (إنشاء/بحث/فلترة/توريد/حذف صلب/Soft-delete/عزل مستأجرين/صلاحيات/إعادة دخول) | Handler حقيقي غير معدَّل + Supabase وهمي في الذاكرة |
+| `api/_lib/modules/upload.integration.test.js` | رفع صورة منتج/شعار متجر، حارس الحجم، تعقيم الاسم، رفض بلا مصادقة | Handler حقيقي |
+| `api/_lib/modules/tenants.integration.test.js` | BL-01 (401/403/عزل) + استمرار عمل حفظ الشعار بعده | Handler حقيقي |
+| `src/hooks/useTenantScopedList.test.tsx` | 5 حالات تحميل الصفحة + سقوط أوفلاين على cache | Hook حقيقي + `fake-indexeddb` |
+| `src/lib/offline/productsQueue.test.ts` | CRUD منتجات أوفلاين + outbox + إلغاء إنشاء معلّق عند الحذف قبل المزامنة | كود حقيقي + `fake-indexeddb` |
+| `src/contexts/AuthContext.test.tsx` | استمرار الجلسة عبر إعادة التشغيل/الأوفلاين/الخروج/إعادة الدخول | Context حقيقي |
+| `api/audit.test.js` | يكشف انحراف أعمدة `audit_logs` (BL-03) | |
+| `api/refund-math.test.js` | حارس المرتجع التراكمي (BL-04) | |
+| `api/discount-policy.test.js` | سقف الخصم بحسب الدور (BL-08) | |
+| `src/lib/inventory/stockDelta.test.ts` | وحدة مخزون الوزن (BL-09) | |
+
+> **قيد بيئة معروف:** بروكسي الشبكة الصادرة في بعض بيئات التشغيل الآلي (sandboxes) يمنع اتصال HTTPS مباشر بمضيف Supabase (سياسة تنظيمية، تحقّقنا منها عبر نقطة تشخيص البروكسي نفسها). لذلك اختبارات API أعلاه تستخدم عميل Supabase وهمياً في الذاكرة يُشغِّل **كود الـ handler الحقيقي غير المعدَّل** بدل شبكة حقيقية؛ أما حقائق مستوى RLS/المخطط فتحقَّقت مباشرة عبر أدوات Supabase MCP (`execute_sql`/`apply_migration`) الموثَّقة في هذا المستند. في بيئة CI/تطوير عادية بلا هذا القيد، `scripts/acceptance-live.mjs` و`scripts/e2e-acceptance.mjs` يُشغِّلان تدفقات مشابهة عبر شبكة حقيقية فعلياً.
 
 ---
 
-## 17. النشر — Infrastructure Integration Update
+## 18. النشر
 
-> **الفرع الرسمي:** `develop` هو المصدر الوحيد للتطوير. `main` فقط للنسخ المستقرة.
-> **دليل الإعداد الكامل:** `docs/SETUP.md` + `supabase/README.md` + `docs/Infrastructure-Setup-Plan.md`
+> **الفرع الرسمي الآن:** `main`. فرع `develop` **دُمِج في `main` وحُذف** — أي مرجع سابق لـ `develop` كفرع تطوير نشط لم يعد صحيحاً.
 
-### النشر المحلي Dev
+### النشر المحلي
 
 ```bash
-git checkout develop
+git checkout main
 cp .env.example .env.local  # املأ مفاتيح rafd-dev
 npm ci
 npm test && npm run build
 npm run dev  # http://localhost:5173
 ```
 
-### تنفيذ SQL على Supabase (إلزامي - Migrations رسمية)
+### تنفيذ SQL على Supabase
 
 ```bash
-# الطريقة الرسمية - أمر واحد:
 supabase login
 supabase link --project-ref YOUR_PROJECT_REF
-supabase db push   # يطبق كل ملفات supabase/migrations/ بالترتيب الزمني
-# أو: npm run db:push
-
-# التحقق:
-supabase db pull --linked  # اختياري
-npm run db:check           # يتحقق من tenants, products, sales, bucket rafd-media
-
-# الطريقة اليدوية (احتياطي):
-# 1) supabase/migrations/20260722000001_base_schema.sql
-# 2) supabase/migrations/20260722000002_storage.sql
-# 3) supabase/migrations/20260722000003_p0_security.sql
-# 4) supabase/migrations/20260722000004_p1_features.sql
-# 5) supabase/migrations/20260722000005_p2_features.sql
-# راجع supabase/README.md + docs/SETUP.md + docs/workflows/supabase-migrate.yml
+supabase db push   # يطبّق كل ملفات supabase/migrations/ بالترتيب الزمني (§12)
+npm run db:check   # يتحقق من tenants, products, sales, bucket rafd-media
 ```
 
 ### نشر Vercel
-
-1. Vercel Dashboard → New Project → Import `rafdhq/rafd-app` → Branch `develop` للـ Preview، `main` للـ Production
-2. **Environment Variables:**
-   - Preview → مفاتيح `rafd-dev`
-   - Production → مفاتيح `rafd-prod`
-   - لا تضع أسرار في `vercel.json` (تم تنظيفه)
-3. Build: `npm run build` → Output: `dist`
+1. Vercel Dashboard → Import `rafdhq/rafd-app` → Branch `main`.
+2. Environment Variables: مفاتيح `rafd-dev` للـ Preview، `rafd-prod` للـ Production.
+3. Build: `npm run build` → Output: `dist`.
 
 ### Checklist قبل النشر
-
-- [x] `.env.example` موجود وموثق
-- [x] `vercel.json` بدون `env` سرية
-- [x] SQL مرتبة ومجربة
-- [ ] تشغيل SQL على `rafd-prod` قبل أول Beta
-- [ ] ضبط Auth Redirect URLs + Google OAuth على الدومين النهائي  
-
----
-
-## 18. حسابات تجريبية
-
-| الحساب | البريد | كلمة المرور |
-|--------|--------|-------------|
-| مالك | `demo@rafd.app` | `password123` |
-| سوبر أدمن | `admin@rafd.app` | `password123` |
+- [x] `.env.example` موجود وموثّق
+- [x] `vercel.json` بدون أسرار
+- [x] SQL مرتَّبة ومجرَّبة على `rafd-dev` (§12)
+- [ ] تحديث `.github/workflows/supabase-migrate.yml` ليشمل `main` بدل `develop` المحذوف
+- [ ] تشغيل SQL على `rafd-prod` قبل أول Beta (إن وُجد مشروع إنتاج منفصل)
+- [ ] ضبط Auth Redirect URLs + Google OAuth على الدومين النهائي
 
 ---
 
-## 19. اتفاقيات التطوير
+## 19. حساب الدخول الفعلي
 
-- لا تبدأ **P3** قبل موافقة صريحة على إغلاق P2.
-- لا `tenant_id = 1` في منطق الإنتاج.
-- كل API حساس: JWT + permission + tenant.
-- بعد mutation: إعادة جلب أو outbox واضح.
-- لا Placeholder/TODO في مسارات P2 المكتملة.
+**لا يوجد حساب تجريبي وهمي على هذا الفرع.** الحساب الحقيقي الوحيد المُهيَّأ في `app_users`:
 
----
+| البريد | الدور | ملاحظة |
+|--------|-------|--------|
+| `malek9art@gmail.com` | `owner` + `superadmin` معاً | مربوط بحساب Supabase Auth حقيقي موجود مسبقاً (migration `...008`)؛ كلمة المرور مُدارة في Supabase Auth ولا تظهر هنا |
 
-## 20. حالة الجاهزية
-
-| المجال | بعد P2 |
-|--------|--------|
-| أمن API / عزل | **~92%** |
-| Offline-first | **~78%** |
-| POS + أجهزة | **~93%** |
-| مخزون/جرد/مشتريات/BOM | **~95%** |
-| تقارير/أسعار | **~94%** |
-| ولاء / AI | **~91%** |
-| i18n / جوال | **~88%** |
-| فريق/دعوات/تدقيق | **~86%** |
-| **إجمالي المنتج** | **~96%** |
-
-### الخلاصة
-- **P0 مكتملة.**  
-- **P1 مكتملة.**  
-- **P2 مكتملة برمجياً ومختبرة (`npm test` 31/31 + `npm run build`).**  
-- **P3 لن تُبدأ حتى المراجعة والموافقة الصريحة.**
+يدخل هذا الحساب عبر `/login` (واجهة المتجر، بصفته owner) **أو** عبر `/admin/login` (بوابة إدارة المنصة، بصفته superadmin) — كلاهما يعمل لأنه يجمع الدورين. أي جدول "حسابات تجريبية" (`demo@rafd.app`/`admin@rafd.app`) في وثائق سابقة كان نصاً افتراضياً غير حقيقي وأُزيل من هذا المستند.
 
 ---
 
-## ملحق — أوامر سريعة
+## 20. اتفاقيات التطوير
 
-```bash
-npm test && npm run build
-```
+- لا `tenant_id = 1` كافتراضي صامت في منطق الإنتاج (BL-10) — يُحجَب العرض حتى يُحلّ tenant حقيقي.
+- كل API حساس: JWT + permission + tenant عبر `withApi`/`requireAuth`.
+- بعد أي mutation في صفحة: إعادة جلب أو تحديث cache متفائل واضح — لا فشل صامت بلا رسالة للمستخدم.
+- أي صفحة تعتمد على `tenant?.id` يجب أن تُميّز صراحة بين "لا يوجد متجر" و"خطأ" و"قائمة فارغة" (نمط `useTenantScopedList`) — لا إرجاع مبكر يترك `loading=true` للأبد.
+- لا Placeholder/TODO في مسارات مكتملة.
+- إصلاح أمني/بنيوي حقيقي يُرفَق بدليل (ملف:سطر) وسبب جذري واختبار يكشف رجوعه.
 
-**بُني ليُكمل — لا ليُعاد اختراعه.**  
-P2 مغلق. في انتظار اعتمادك قبل أي P3.
+---
+
+## 21. القيود والمشاكل المتبقية
+
+مرتّبة حسب الأولوية:
+
+1. **🔴 نمط "تعليق عند عدم حل tenant" لا يزال موجوداً في ~19 صفحة أخرى** (`Settings.tsx`, `Shifts.tsx`, `Customers.tsx`, `Suppliers.tsx`, ...) بنفس الشكل الذي أُصلح في المنتجات/المخزون فقط. لم يُصلَح هذه الدورة لأنه خارج نطاق الطلب الصريح (المنتجات والمخزون فقط) — `useTenantScopedList` جاهز لإعادة الاستخدام على بقية الصفحات.
+2. **🟠 مُشغّل CI للترحيلات (`supabase-migrate.yml`) لا يزال يستهدف فرع `develop` المحذوف** — لن تُطبَّق ترحيلات مستقبلية تلقائياً عند الدفع لـ `main` حتى يُحدَّث.
+3. **🟠 اختبارات API الحقيقية عبر الشبكة (`scripts/acceptance-live.mjs`, `scripts/e2e-acceptance.mjs`) لا يمكن تشغيلها من بيئات sandbox تمنع الوصول المباشر لمضيف Supabase** — تعمل فقط من جهاز/CI بلا هذا القيد.
+4. **🟡 ربط الولاء التلقائي من POS** غير منفّذ (API جاهز فقط).
+5. **🟡 خصم مكونات BOM تلقائياً عند بيع منتج نهائي** غير مربوط بمسار البيع (منفَّذ فقط عند أمر تصنيع صريح).
+6. **🟡 استيراد ملفات `.xlsx` الثنائية** يحتاج تحويلاً مسبقاً لـ CSV/XML.
+7. **🟡 حجم حزمة الواجهة** > 500kB بعد minification — مرشَّح code-splitting لاحق.
+8. **🟡 اعتماد المدير التفاعلي لتجاوز سقف خصم الكاشير (BL-08)** غير منفَّذ — السلوك الحالي رفض صريح (403) بدل تدفّق طلب/اعتماد.
+
+---
+
+## 22. Changelog
+
+### غير مُصدَّر بعد — إصلاحات ما بعد مراجعة منطق الأعمال
+
+#### أمن (🔴)
+- BL-01: تأمين `GET`/`PUT` على `/api/tenants` بمصادقة وعزل مستأجرين؛ `POST` العام محمي بـ rate-limit
+- تشديد سياسات RLS على `storage.objects` (حاوية `rafd-media`) من `public` إلى `authenticated` للكتابة/التعديل/الحذف
+
+#### موثوقية المبيعات/المخزون (🔴/🟠/🟡)
+- BL-02: خصم/إضافة مخزون ذرّي عبر RPC بدل قراءة-ثم-كتابة؛ خصم أوفلاين تفاؤلي للمبيعات
+- BL-03: إصلاح تدقيق المبيعات المعطَّل (أعمدة خاطئة)
+- BL-04: حارس مرتجع تراكمي يمنع تجاوز الكمية المباعة
+- BL-05: تفرّد رقم الفاتورة لكل (مستأجر، فرع)
+- BL-06: ربط المبيعات بوردية الكاشير المفتوحة
+- BL-07: Soft-delete للمنتجات ذات المبيعات بدل حذف صلب يقطع ربط الفواتير
+- BL-08: سقف خصم بحسب الدور مفروض على الخادم
+- BL-09: توحيد وحدة مخزون الوزن على الكجم
+- BL-10: إزالة fallback `tenant_id=1`
+- BL-11: تطبيق قوائم الأسعار تلقائياً في POS
+- BL-12: تسجيل عجز المخزون عند السماح بالبيع رغم النقص
+
+#### المنتجات والمخزون + Offline-First (جديد بالكامل)
+- إصلاح جذري لتعليق صفحتَي المنتجات/المخزون على التحميل عند عدم حل tenant
+- تمييز 5 حالات تحميل مختلفة (لا-متجر/فارغ/مصادقة/صلاحية/خادم/اتصال) بدل رسالة عامة واحدة
+- Hook مشترك قابل لإعادة الاستخدام: `useTenantScopedList`
+- Offline-first كامل للمنتجات: قراءة من cache عند الأوفلاين، كتابة (إنشاء/تعديل/حذف/توريد) عبر outbox مع تفاؤل متفائل وإلغاء ذكي للإنشاء المعلّق عند الحذف قبل المزامنة
+- رسائل خطأ مرئية للمستخدم عند فشل الحفظ/الحذف (كانت تفشل صامتاً)
+
+#### الاختبارات (جديد)
+- 97 اختباراً (كانت 31) عبر 23 ملف — إضافات: تكامل handlers حقيقية (products/upload/tenants)، Offline hooks وqueues بـ `fake-indexeddb`، جلسة AuthContext، منطق أعمال بحت (audit/refund-math/discount-policy/stockDelta)
+
+#### قاعدة البيانات
+- 3 ترحيلات جديدة idempotent (`...009`, `...010`, `...011`) — مُطبَّقة ومُتحقَّق منها على `rafd-dev`
+
+---
+
+**بُني ليُكمل — لا ليُعاد اختراعه.**
