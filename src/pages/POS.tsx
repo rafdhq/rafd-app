@@ -78,7 +78,8 @@ export default function POS() {
   const { tenant, currentBranch } = useTenant();
   const { profile } = useAuth();
   const currency = tenant?.currency || 'YER';
-  const tenantId = tenant?.id || 1;
+  // BL-10: no demo-store fallback. POS is inert until a real tenant resolves.
+  const tenantId = tenant?.id ?? null;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -135,6 +136,10 @@ export default function POS() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
+    if (tenantId == null) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [pRes, cRes, bRes, tRes] = await Promise.all([
@@ -412,6 +417,11 @@ export default function POS() {
 
   const completeSale = async () => {
     if (!lines.length) return;
+    if (tenantId == null) {
+      setToast('لا يوجد متجر — أكمل إعداد المتجر أولاً');
+      setTimeout(() => setToast(''), 2500);
+      return;
+    }
     if (paymentMethod === 'credit' && !customer) {
       setToast('البيع الآجل يتطلب اختيار عميل');
       setTimeout(() => setToast(''), 2000);

@@ -1,4 +1,41 @@
 import { supabase } from '../db-client.js';
+import { resolveAuth, assertPermission } from '../auth-middleware.js';
+
+/** Requests-per-IP allowed against the public onboarding POST within the window. */
+const ONBOARDING_MAX_PER_HOUR = 10;
+
+function clientIp(req) {
+  const xff = req.headers['x-forwarded-for'] || req.headers['X-Forwarded-For'] || '';
+  const first = String(xff).split(',')[0].trim();
+  return first || req.socket?.remoteAddress || 'unknown';
+}
+
+/**
+ * Best-effort, DB-backed rate limit for the PUBLIC store-creation endpoint
+ * (BL-01). Onboarding creates a tenant before any user/token exists, so POST
+ * must stay open — but it is defended here (and by device-trial binding at
+ * /api/subscription `init-trial`, which rejects repeat free trials).
+ *
+ * Fail-open: any infrastructure error (e.g. the log table not yet migrated)
+ * allows the request, so store creation is never broken by this control.
+ */
+async function onboardingRateLimited(req) {
+  try {
+    const ip = clientIp(req);
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error } = await supabase
+      .from('onboarding_ip_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip', ip)
+      .gte('created_at', since);
+    if (error) return false; // fail-open
+    if ((count || 0) >= ONBOARDING_MAX_PER_HOUR) return true;
+    await supabase.from('onboarding_ip_log').insert({ ip });
+    return false;
+  } catch {
+    return false; // fail-open
+  }
+}
 
 function parseArr(v) {
   if (Array.isArray(v)) return v.map(String).filter(Boolean);
@@ -87,18 +124,70 @@ export const handler = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
-    if (req.method === 'GET') {
-      const { id } = req.query;
-      let q = supabase.from('tenants').select('*').order('id', { ascending: true });
-      if (id) q = q.eq('id', id);
-      const { data, error } = await q;
-      if (error) throw error;
-      if (id) return res.status(200).json(await withCatalog(data?.[0] || null));
-      const rows = await Promise.all((data || []).map((r) => withCatalog(r)));
-      return res.status(200).json(rows);
+    // BL-01: GET/PUT require authentication + tenant isolation. Only POST stays
+    // public (onboarding creates the store before a user/token exists).
+    if (req.method === 'GET' || req.method === 'PUT') {
+      const auth = await resolveAuth(req);
+      if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+      const isSuper = auth.role === 'superadmin';
+      const ownTenant = Number(auth.profile?.tenant_id);
+
+      if (req.method === 'GET') {
+        const { id } = req.query;
+        if (id != null && id !== '') {
+          if (!isSuper && Number(id) !== ownTenant) {
+            return res.status(403).json({ error: 'Forbidden' });
+          }
+          const { data, error } = await supabase.from('tenants').select('*').eq('id', id);
+          if (error) throw error;
+          return res.status(200).json(await withCatalog(data?.[0] || null));
+        }
+        // List: superadmin sees every tenant; a tenant user sees only their own.
+        if (!isSuper) {
+          if (!Number.isFinite(ownTenant) || ownTenant <= 0) return res.status(200).json([]);
+          const { data, error } = await supabase.from('tenants').select('*').eq('id', ownTenant);
+          if (error) throw error;
+          const rows = await Promise.all((data || []).map((r) => withCatalog(r)));
+          return res.status(200).json(rows);
+        }
+        const { data, error } = await supabase
+          .from('tenants')
+          .select('*')
+          .order('id', { ascending: true });
+        if (error) throw error;
+        const rows = await Promise.all((data || []).map((r) => withCatalog(r)));
+        return res.status(200).json(rows);
+      }
+
+      // PUT — edit store settings; requires settings:write + own tenant.
+      const gate = assertPermission(auth, 'settings:write');
+      if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
+      const body = req.body || {};
+      const { id, ...rest } = body;
+      if (!id) return res.status(400).json({ error: 'id required' });
+      if (!isSuper && Number(id) !== ownTenant) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      const tenantFields = stripCatalogFields(rest);
+      delete tenantFields.tenant_id;
+      let data = null;
+      if (Object.keys(tenantFields).length) {
+        const result = await supabase.from('tenants').update(tenantFields).eq('id', id).select().single();
+        if (result.error) throw result.error;
+        data = result.data;
+      } else {
+        const result = await supabase.from('tenants').select('*').eq('id', id).single();
+        if (result.error) throw result.error;
+        data = result.data;
+      }
+      const catalog = await upsertCatalog(id, body);
+      return res.status(200).json({ ...data, ...catalog });
     }
 
     if (req.method === 'POST') {
+      if (await onboardingRateLimited(req)) {
+        return res.status(429).json({ error: 'Too many store-creation attempts. Please try again later.' });
+      }
       const body = req.body || {};
       const tenantFields = stripCatalogFields(body);
       const { data, error } = await supabase
@@ -123,25 +212,6 @@ export const handler = async function handler(req, res) {
       if (error) throw error;
       const catalog = await upsertCatalog(data.id, body);
       return res.status(201).json({ ...data, ...catalog });
-    }
-
-    if (req.method === 'PUT') {
-      const body = req.body || {};
-      const { id, ...rest } = body;
-      if (!id) return res.status(400).json({ error: 'id required' });
-      const tenantFields = stripCatalogFields(rest);
-      let data = null;
-      if (Object.keys(tenantFields).length) {
-        const result = await supabase.from('tenants').update(tenantFields).eq('id', id).select().single();
-        if (result.error) throw result.error;
-        data = result.data;
-      } else {
-        const result = await supabase.from('tenants').select('*').eq('id', id).single();
-        if (result.error) throw result.error;
-        data = result.data;
-      }
-      const catalog = await upsertCatalog(id, body);
-      return res.status(200).json({ ...data, ...catalog });
     }
 
     res.status(405).json({ error: 'Method not allowed' });

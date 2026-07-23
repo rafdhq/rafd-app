@@ -1,5 +1,6 @@
 import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
+import { writeAudit } from '../audit.js';
 
 function isWeightItem(it, prod) {
   if (it.sold_by_weight || it.weight_g != null) return true;
@@ -227,20 +228,15 @@ export const handler = withApi(
         }
       }
 
-      // audit
-      try {
-        await supabase.from('audit_logs').insert({
-          tenant_id: tid,
-          user_email: auth?.user?.email || null,
-          user_role: auth?.role || null,
-          action: 'sale.create',
-          entity: 'sales',
-          entity_id: String(sale.id),
-          meta: { invoice_number: sale.invoice_number, total, method, offline: !!body.client_local_id },
-        });
-      } catch {
-        /* optional table */
-      }
+      // audit — BL-03: use the real audit_logs columns (user_id/entity_type/...)
+      await writeAudit({
+        tenantId: tid,
+        userId: auth?.profile?.id || null,
+        action: 'sale.create',
+        entityType: 'sales',
+        entityId: sale.id,
+        meta: { invoice_number: sale.invoice_number, total, method, offline: !!body.client_local_id },
+      });
 
       return res.status(201).json(sale);
     }
