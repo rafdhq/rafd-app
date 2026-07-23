@@ -1,14 +1,8 @@
 import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
 import { methodNotAllowed } from '../auth-middleware.js';
-
-async function writeAudit(row) {
-  try {
-    await supabase.from('audit_logs').insert(row);
-  } catch {
-    /* ignore */
-  }
-}
+import { writeAudit } from '../audit.js';
+import { validateRefundQuantities } from '../refund-math.js';
 
 export const handler = withApi(
   async function handler(req, res, { auth, tenantId }) {
@@ -39,19 +33,53 @@ export const handler = withApi(
       const { data: saleItems } = await supabase.from('sale_items').select('*').eq('sale_id', saleId);
       const byId = Object.fromEntries((saleItems || []).map((i) => [i.id, i]));
 
-      let refundTotal = 0;
-      const refundLines = [];
+      // BL-04: load everything already refunded against THIS sale so the guard is
+      // cumulative (sold − already refunded), not just against the original qty.
+      const { data: priorRefunds } = await supabase.from('refunds').select('id').eq('sale_id', saleId);
+      const priorRefundIds = (priorRefunds || []).map((r) => r.id);
+      let priorRefundItems = [];
+      if (priorRefundIds.length) {
+        const { data } = await supabase
+          .from('refund_items')
+          .select('sale_item_id, quantity')
+          .in('refund_id', priorRefundIds);
+        priorRefundItems = data || [];
+      }
+      const soldByItemId = {};
+      for (const si of saleItems || []) soldByItemId[si.id] = Number(si.quantity || 0);
+      const priorByItemId = {};
+      for (const ri of priorRefundItems) {
+        if (ri.sale_item_id != null) {
+          priorByItemId[ri.sale_item_id] = (priorByItemId[ri.sale_item_id] || 0) + Number(ri.quantity || 0);
+        }
+      }
 
+      // Resolve each requested line to its source sale_item.
+      const resolved = [];
       for (const it of items) {
         const src = byId[it.sale_item_id] || (saleItems || []).find((x) => x.product_id === it.product_id);
         if (!src) return res.status(400).json({ error: `Item not found: ${it.sale_item_id || it.product_id}` });
+        resolved.push({ src, quantity: Number(it.quantity || 0) });
+      }
 
-        const qty = Number(it.quantity || 0);
-        if (qty <= 0) return res.status(400).json({ error: 'Invalid quantity' });
-        if (qty > Number(src.quantity)) {
-          return res.status(400).json({ error: `Refund qty exceeds sold qty for ${src.product_name}` });
+      const check = validateRefundQuantities(
+        soldByItemId,
+        priorByItemId,
+        resolved.map((r) => ({ saleItemId: r.src.id, quantity: r.quantity }))
+      );
+      if (!check.ok) {
+        const bad = resolved.find((r) => r.src.id === check.saleItemId)?.src;
+        if (check.error === 'invalid_quantity') {
+          return res.status(400).json({ error: 'Invalid quantity' });
         }
+        return res.status(400).json({
+          error: `Refund qty exceeds remaining refundable qty for ${bad?.product_name || 'item'} (remaining ${check.remaining})`,
+        });
+      }
 
+      let refundTotal = 0;
+      const refundLines = [];
+      for (const { src, quantity: qty } of resolved) {
         const unit = Number(src.unit_price || 0);
         const lineTotal = Math.round(unit * qty * 100) / 100;
         refundTotal += lineTotal;
@@ -90,21 +118,29 @@ export const handler = withApi(
       const rows = refundLines.map((l) => ({ ...l, refund_id: refund.id }));
       await supabase.from('refund_items').insert(rows);
 
-      // Restock
+      // Restock — BL-02: atomic increment (single locked UPDATE) instead of
+      // read-then-write, matching the sale-deduction path.
       for (const l of refundLines) {
-        const { data: prod } = await supabase.from('products').select('stock').eq('id', l.product_id).single();
-        if (prod) {
-          await supabase
-            .from('products')
-            .update({ stock: Number(prod.stock || 0) + Number(l.quantity) })
-            .eq('id', l.product_id);
-        }
+        if (!l.product_id || !(Number(l.quantity) > 0)) continue;
+        await supabase.rpc('pos_apply_stock_delta', {
+          p_product_id: l.product_id,
+          p_delta: Number(l.quantity),
+          p_block_negative: false,
+        });
       }
 
-      // Mark original sale
-      const full =
-        refundLines.reduce((a, l) => a + Number(l.quantity), 0) >=
-        (saleItems || []).reduce((a, l) => a + Number(l.quantity), 0);
+      // Mark original sale — BL-04: base "fully refunded" on the CUMULATIVE
+      // refunded quantity (prior refunds + this one), not just this request.
+      const thisByItemId = {};
+      for (const l of refundLines) thisByItemId[l.sale_item_id] = (thisByItemId[l.sale_item_id] || 0) + Number(l.quantity);
+      let totalSold = 0;
+      let totalRefunded = 0;
+      for (const si of saleItems || []) {
+        const sold = Number(si.quantity || 0);
+        totalSold += sold;
+        totalRefunded += Math.min(sold, (priorByItemId[si.id] || 0) + (thisByItemId[si.id] || 0));
+      }
+      const full = totalSold > 0 && totalRefunded >= totalSold;
       await supabase
         .from('sales')
         .update({ status: full ? 'refunded' : 'partial_refund' })
@@ -130,11 +166,11 @@ export const handler = withApi(
       }
 
       await writeAudit({
-        tenant_id: sale.tenant_id,
-        user_id: auth.profile.id,
+        tenantId: sale.tenant_id,
+        userId: auth.profile.id,
         action: mode === 'exchange' ? 'sale.exchange' : 'sale.refund',
-        entity_type: 'refunds',
-        entity_id: String(refund.id),
+        entityType: 'refunds',
+        entityId: refund.id,
         meta: { sale_id: sale.id, amount: refundTotal, items: refundLines.length },
       });
 

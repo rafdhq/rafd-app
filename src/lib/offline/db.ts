@@ -8,7 +8,7 @@ export type OutboxStatus = 'pending' | 'syncing' | 'failed' | 'done';
 export interface OutboxItem {
   id: string;
   tenant_id: number;
-  type: 'sale' | 'product_stock' | 'customer' | 'expense' | 'generic';
+  type: 'sale' | 'product' | 'product_stock' | 'customer' | 'expense' | 'generic';
   method: string;
   url: string;
   body: unknown;

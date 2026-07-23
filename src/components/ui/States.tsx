@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, WifiOff, RefreshCw, CloudOff } from 'lucide-react';
+import { AlertCircle, CheckCircle2, WifiOff, RefreshCw, CloudOff, Store, ShieldAlert, ServerCrash } from 'lucide-react';
 import Button from './Button';
 import { cn } from '../../lib/utils';
 
@@ -16,6 +16,71 @@ export function ErrorState({
       <AlertCircle className="mb-3 h-10 w-10 text-danger" />
       <h3 className="font-semibold text-app">{title}</h3>
       <p className="mt-1 text-sm text-muted">{description}</p>
+      {onRetry && (
+        <Button className="mt-4" variant="outline" onClick={onRetry}>
+          إعادة المحاولة
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Shown when a page's data load cannot proceed because no tenant has resolved
+ * yet — distinct from an error (nothing failed) and from an empty list (there
+ * IS a store, it just has no rows). Used by useTenantScopedList consumers.
+ */
+export function NoTenantState({
+  title = 'لا يوجد متجر مرتبط بحسابك بعد',
+  description = 'أكمل إعداد المتجر أو انتظر تحميل بيانات حسابك، ثم أعد المحاولة.',
+  onRetry,
+}: {
+  title?: string;
+  description?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-app bg-subtle px-6 py-12 text-center">
+      <Store className="mb-3 h-10 w-10 text-muted" />
+      <h3 className="font-semibold text-app">{title}</h3>
+      <p className="mt-1 max-w-sm text-sm text-muted">{description}</p>
+      {onRetry && (
+        <Button className="mt-4" variant="outline" onClick={onRetry}>
+          إعادة المحاولة
+        </Button>
+      )}
+    </div>
+  );
+}
+
+/** Permission-denied variant of ErrorState (403) — visually distinct from a generic/server error. */
+export function PermissionErrorState({
+  description = 'لا تملك صلاحية الوصول لهذه البيانات. تواصل مع مالك المتجر إن كنت تحتاج هذه الصلاحية.',
+}: {
+  description?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-app bg-warning-soft/40 px-6 py-12 text-center">
+      <ShieldAlert className="mb-3 h-10 w-10 text-warning" />
+      <h3 className="font-semibold text-app">لا توجد صلاحية</h3>
+      <p className="mt-1 max-w-sm text-sm text-muted">{description}</p>
+    </div>
+  );
+}
+
+/** Network/connectivity variant of ErrorState — distinct from a server-side failure. */
+export function NetworkErrorState({
+  description = 'تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت ثم أعد المحاولة.',
+  onRetry,
+}: {
+  description?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-app bg-info-soft/40 px-6 py-12 text-center">
+      <ServerCrash className="mb-3 h-10 w-10 text-info" />
+      <h3 className="font-semibold text-app">تعذر الاتصال</h3>
+      <p className="mt-1 max-w-sm text-sm text-muted">{description}</p>
       {onRetry && (
         <Button className="mt-4" variant="outline" onClick={onRetry}>
           إعادة المحاولة

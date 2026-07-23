@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, PackageCheck, RefreshCw } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
@@ -6,88 +6,90 @@ import Badge from '../components/ui/Badge';
 import Tabs from '../components/ui/Tabs';
 import { Table, THead, TH, TBody, TD } from '../components/ui/Table';
 import { PageSkeleton } from '../components/ui/Skeleton';
-import { ErrorState } from '../components/ui/States';
+import { ErrorState, NoTenantState, PermissionErrorState, NetworkErrorState, OfflineBanner } from '../components/ui/States';
 import EmptyState from '../components/ui/EmptyState';
 import Dialog from '../components/ui/Dialog';
 import Input from '../components/ui/Input';
 import ProductThumb from '../components/products/ProductThumb';
 import { useTenant } from '../contexts/TenantContext';
+import { useTenantScopedList } from '../hooks/useTenantScopedList';
+import { updateProductWithOffline } from '../lib/offline/productsQueue';
 import type { Product } from '../lib/types';
 import { formatMoney, unitCostFromCarton } from '../lib/utils';
 
 export default function Inventory() {
   const { tenant } = useTenant();
   const currency = tenant?.currency || 'YER';
-  const [items, setItems] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const tenantId = tenant?.id ?? null;
+  const {
+    items,
+    setItems,
+    status,
+    errorKind,
+    errorMessage,
+    offlineServed,
+    reload: load,
+  } = useTenantScopedList<Product>(
+    'products',
+    tenantId,
+    tenantId != null ? `/api/products?tenant_id=${tenantId}` : null
+  );
   const [tab, setTab] = useState('all');
   const [adjust, setAdjust] = useState<Product | null>(null);
   const [qty, setQty] = useState(0);
   const [addCartons, setAddCartons] = useState(0);
   const [cartonCost, setCartonCost] = useState(0);
   const [busy, setBusy] = useState(false);
-
-  const load = async () => {
-    if (!tenant?.id) return;
-    setLoading(true);
-    setError('');
-    try {
-      const res = await fetch(`/api/products?tenant_id=${tenant.id}`);
-      if (!res.ok) throw new Error('فشل التحميل');
-      setItems(await res.json());
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'خطأ');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, [tenant?.id]);
+  const [adjustError, setAdjustError] = useState('');
 
   const low = items.filter((p) => Number(p.stock) <= Number(p.min_stock));
   const out = items.filter((p) => Number(p.stock) <= 0);
   const view = tab === 'low' ? low : tab === 'out' ? out : items;
 
   const saveAdjust = async () => {
-    if (!adjust) return;
+    if (!adjust || tenantId == null) return;
     setBusy(true);
+    setAdjustError('');
     try {
-      if (addCartons > 0) {
-        await fetch('/api/products', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: adjust.id,
-            add_cartons: addCartons,
-            carton_cost: cartonCost || undefined,
-            units_per_carton: adjust.units_per_carton || 1,
-          }),
-        });
-      } else {
-        await fetch('/api/products', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: adjust.id, stock: qty }),
-        });
+      const payload =
+        addCartons > 0
+          ? {
+              id: adjust.id,
+              add_cartons: addCartons,
+              carton_cost: cartonCost || undefined,
+              units_per_carton: adjust.units_per_carton || 1,
+            }
+          : { id: adjust.id, stock: qty };
+      const { product } = await updateProductWithOffline(payload, tenantId);
+      if (product) {
+        setItems((prev) => prev.map((p) => (p.id === adjust.id ? { ...p, ...product } as Product : p)));
       }
       setAdjust(null);
       setAddCartons(0);
-      load();
+    } catch (err) {
+      setAdjustError(err instanceof Error ? err.message : 'تعذر حفظ التسوية');
     } finally {
       setBusy(false);
     }
   };
 
-  if (loading) return <PageSkeleton />;
-  if (error) return <ErrorState description={error} onRetry={load} />;
+  if (status === 'loading') return <PageSkeleton />;
+  if (status === 'no-tenant') return <NoTenantState onRetry={load} />;
+  if (status === 'error') {
+    if (errorKind === 'permission') return <PermissionErrorState description={errorMessage} />;
+    if (errorKind === 'network') return <NetworkErrorState description={errorMessage} onRetry={load} />;
+    return <ErrorState description={errorMessage} onRetry={load} />;
+  }
 
   const upc = Number(adjust?.units_per_carton || 1) || 1;
 
   return (
     <div>
+      {offlineServed && (
+        <div className="mb-3">
+          <OfflineBanner visible />
+        </div>
+      )}
       <PageHeader
         title="المخزون"
         description="التوريد بالكرتون · الجرد بالحبة · سعر شراء الحبة تلقائي"
@@ -180,6 +182,7 @@ export default function Inventory() {
                         setQty(Number(p.stock));
                         setAddCartons(0);
                         setCartonCost(Number(p.carton_cost || Number(p.cost) * units));
+                        setAdjustError('');
                       }}
                     >
                       توريد/تسوية
@@ -208,6 +211,11 @@ export default function Inventory() {
         }
       >
         <div className="space-y-4">
+          {adjustError && (
+            <div className="rounded-xl border border-[var(--danger)]/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+              {adjustError}
+            </div>
+          )}
           <div className="rounded-2xl border border-primary/20 bg-primary-soft/30 p-4">
             <div className="mb-3 text-sm font-semibold text-primary">توريد بالكرتون</div>
             <div className="grid gap-3 sm:grid-cols-2">

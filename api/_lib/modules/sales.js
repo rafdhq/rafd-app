@@ -1,19 +1,7 @@
 import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
-
-function isWeightItem(it, prod) {
-  if (it.sold_by_weight || it.weight_g != null) return true;
-  const unit = String(prod?.unit || it.unit || '').toLowerCase();
-  const cat = String(prod?.category || it.category || '');
-  return (
-    cat === 'خضار' ||
-    cat === 'فواكه' ||
-    cat === 'لحوم' ||
-    unit.includes('كجم') ||
-    unit.includes('kg') ||
-    unit.includes('غرام')
-  );
-}
+import { writeAudit } from '../audit.js';
+import { checkDiscountAllowed } from '../discount-policy.js';
 
 async function findIdempotentSale(tenantId, key) {
   if (!key) return null;
@@ -24,6 +12,28 @@ async function findIdempotentSale(tenantId, key) {
     .eq('idempotency_key', key)
     .maybeSingle();
   return data || null;
+}
+
+function invoiceSuffix() {
+  return Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+/**
+ * BL-06: resolve the cashier's currently-open shift so every sale can be linked
+ * to it for X/Z cash reconciliation. Soft link — never blocks a sale.
+ */
+async function resolveOpenShiftId(tenantId, userId, explicit) {
+  if (explicit) return explicit;
+  if (!userId) return null;
+  const { data } = await supabase
+    .from('cashier_shifts')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('user_id', userId)
+    .eq('status', 'open')
+    .order('opened_at', { ascending: false })
+    .maybeSingle();
+  return data?.id || null;
 }
 
 export const handler = withApi(
@@ -66,6 +76,29 @@ export const handler = withApi(
       const tid = tenantId || body.tenant_id;
       if (!tid) return res.status(400).json({ error: 'tenant_id required' });
 
+      // BL-08: enforce the role's discount ceiling server-side. Cashiers are
+      // capped at a % of subtotal; over-cap sales are rejected and audited.
+      const discountGate = checkDiscountAllowed(auth?.role, body.subtotal ?? 0, body.discount ?? 0);
+      if (!discountGate.ok) {
+        await writeAudit({
+          tenantId: tid,
+          userId: auth?.profile?.id || null,
+          action: 'sale.discount_rejected',
+          entityType: 'sales',
+          entityId: null,
+          meta: {
+            role: auth?.role,
+            subtotal: Number(body.subtotal ?? 0),
+            discount: Number(body.discount ?? 0),
+            cap: discountGate.cap,
+            invoice_number: body.invoice_number,
+          },
+        });
+        return res.status(403).json({
+          error: 'الخصم يتجاوز الحد المسموح لهذا الدور — يلزم اعتماد المدير',
+        });
+      }
+
       const idem =
         body.idempotency_key ||
         req.headers['x-idempotency-key'] ||
@@ -97,9 +130,12 @@ export const handler = withApi(
       if (body.bank_account_id) notesParts.push(`bank_account_id=${body.bank_account_id}`);
       if (body.client_local_id) notesParts.push(`client_local_id=${body.client_local_id}`);
 
+      const shiftId = await resolveOpenShiftId(tid, auth?.profile?.id, body.shift_id);
+
       const salePayload = {
         tenant_id: tid,
         branch_id: body.branch_id || null,
+        shift_id: shiftId,
         invoice_number: body.invoice_number,
         customer_id: body.customer_id || null,
         customer_name: body.customer_name || 'عميل نقدي',
@@ -117,22 +153,47 @@ export const handler = withApi(
         tax_mode: body.tax_mode || null,
       };
 
-      let sale;
-      {
+      let sale = null;
+      let invoiceAttempt = 0;
+      while (sale == null) {
         const { data, error } = await supabase.from('sales').insert(salePayload).select().single();
-        if (error) {
-          // fallback if optional columns missing
-          if (String(error.message || '').includes('column')) {
-            delete salePayload.idempotency_key;
-            delete salePayload.tax_rate;
-            delete salePayload.tax_mode;
-            const retry = await supabase.from('sales').insert(salePayload).select().single();
-            if (retry.error) throw retry.error;
-            sale = retry.data;
-          } else throw error;
-        } else {
+        if (!error) {
           sale = data;
+          break;
         }
+        const msg = String(error.message || '');
+        const code = error.code || '';
+
+        // A concurrent idempotent replay won the race → return the winner rather
+        // than creating a second sale (or re-decrementing stock).
+        if (code === '23505' && msg.includes('idempotency') && idem) {
+          const existing = await findIdempotentSale(tid, String(idem));
+          if (existing) {
+            const { data: exItems } = await supabase.from('sale_items').select('*').eq('sale_id', existing.id);
+            return res.status(200).json({ ...existing, items: exItems || [], idempotent_replay: true });
+          }
+        }
+
+        // BL-05: invoice_number collides for this (tenant, branch) — offline
+        // devices/branches can mint the same number. Regenerate and retry.
+        if (code === '23505' && invoiceAttempt < 5) {
+          invoiceAttempt += 1;
+          salePayload.invoice_number = `${body.invoice_number || 'INV'}-${invoiceSuffix()}`;
+          continue;
+        }
+
+        // Older schema missing optional columns → drop them and retry once.
+        if (msg.includes('column')) {
+          delete salePayload.idempotency_key;
+          delete salePayload.tax_rate;
+          delete salePayload.tax_mode;
+          delete salePayload.shift_id;
+          const retry = await supabase.from('sales').insert(salePayload).select().single();
+          if (retry.error) throw retry.error;
+          sale = retry.data;
+          break;
+        }
+        throw error;
       }
 
       const items = Array.isArray(body.items) ? body.items : [];
@@ -165,25 +226,42 @@ export const handler = withApi(
 
         if (sale.status === 'completed') {
           for (const it of items) {
-            const { data: prod } = await supabase
-              .from('products')
-              .select('stock, unit, category')
-              .eq('id', it.product_id)
-              .single();
-            if (!prod) continue;
-            const byWeight = isWeightItem(it, prod);
-            // stock for weight products tracked in grams when unit suggests kg — convert qty kg → stock units
+            // BL-09: weight products are tracked in kilograms (price is per-kg and
+            // POS already sends quantity in kg). Always deduct kg — never grams —
+            // instead of guessing the unit from free text.
             let dec = Number(it.quantity) || 0;
-            if (byWeight && it.weight_g != null) {
-              // if stock is in grams
-              const unit = String(prod.unit || '').toLowerCase();
-              if (unit.includes('غرام') || unit === 'g') dec = Number(it.weight_g);
-              else dec = Number(it.weight_g) / 1000; // stock in kg
+            if ((it.sold_by_weight || it.weight_g != null) && it.weight_g != null) {
+              dec = Number(it.weight_g) / 1000;
             }
-            await supabase
-              .from('products')
-              .update({ stock: Math.max(0, Number(prod.stock) - dec) })
-              .eq('id', it.product_id);
+            if (!it.product_id || !(dec > 0)) continue;
+
+            // BL-02: single atomic decrement (row-locked UPDATE) — no read-then-write
+            // race that lets concurrent cashiers oversell.
+            // BL-12: store policy allows overselling; record any resulting deficit
+            // (negative stock) for review instead of silently clamping to zero.
+            const { data: rpc } = await supabase.rpc('pos_apply_stock_delta', {
+              p_product_id: it.product_id,
+              p_delta: -dec,
+              p_block_negative: false,
+            });
+            const row = Array.isArray(rpc) ? rpc[0] : rpc;
+            const newStock = row && row.new_stock != null ? Number(row.new_stock) : null;
+            if (newStock != null && newStock < 0) {
+              await writeAudit({
+                tenantId: tid,
+                userId: auth?.profile?.id || null,
+                action: 'inventory.deficit',
+                entityType: 'products',
+                entityId: it.product_id,
+                meta: {
+                  sale_id: sale.id,
+                  invoice_number: sale.invoice_number,
+                  product_name: it.product_name,
+                  requested_qty: dec,
+                  resulting_stock: newStock,
+                },
+              });
+            }
           }
         }
       }
@@ -227,20 +305,15 @@ export const handler = withApi(
         }
       }
 
-      // audit
-      try {
-        await supabase.from('audit_logs').insert({
-          tenant_id: tid,
-          user_email: auth?.user?.email || null,
-          user_role: auth?.role || null,
-          action: 'sale.create',
-          entity: 'sales',
-          entity_id: String(sale.id),
-          meta: { invoice_number: sale.invoice_number, total, method, offline: !!body.client_local_id },
-        });
-      } catch {
-        /* optional table */
-      }
+      // audit — BL-03: use the real audit_logs columns (user_id/entity_type/...)
+      await writeAudit({
+        tenantId: tid,
+        userId: auth?.profile?.id || null,
+        action: 'sale.create',
+        entityType: 'sales',
+        entityId: sale.id,
+        meta: { invoice_number: sale.invoice_number, total, method, offline: !!body.client_local_id },
+      });
 
       return res.status(201).json(sale);
     }

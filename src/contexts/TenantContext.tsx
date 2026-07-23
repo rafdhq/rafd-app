@@ -45,7 +45,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshTenant = async () => {
-    const tenantId = profile?.tenant_id ?? getCachedTenant()?.id ?? 1;
+    // BL-10: never fall back to the demo store (tenant_id = 1). A user with no
+    // resolved tenant gets no store data — the app must route them to setup.
+    const tenantId = profile?.tenant_id ?? getCachedTenant()?.id ?? null;
+    if (tenantId == null) {
+      setTenant(null);
+      setBranches([]);
+      setLoading(false);
+      return;
+    }
     try {
       const [tRes, bRes] = await Promise.all([
         fetch(`/api/tenants?id=${tenantId}`),

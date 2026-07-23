@@ -9,11 +9,14 @@ import Dialog from '../components/ui/Dialog';
 import { Table, THead, TH, TBody, TD } from '../components/ui/Table';
 import EmptyState from '../components/ui/EmptyState';
 import { PageSkeleton } from '../components/ui/Skeleton';
-import { ErrorState } from '../components/ui/States';
+import { ErrorState, NoTenantState, PermissionErrorState, NetworkErrorState, OfflineBanner } from '../components/ui/States';
 import BarcodeScanner from '../components/ui/BarcodeScanner';
 import ProductThumb from '../components/products/ProductThumb';
 import ProductImagePicker from '../components/products/ProductImagePicker';
 import { useTenant } from '../contexts/TenantContext';
+import { useTenantScopedList } from '../hooks/useTenantScopedList';
+import { createProductWithOffline, updateProductWithOffline, deleteProductWithOffline } from '../lib/offline/productsQueue';
+import { apiFetch } from '../lib/apiClient';
 import type { Product, Supplier } from '../lib/types';
 import { formatMoney, isWeightProduct, unitCostFromCarton } from '../lib/utils';
 import {
@@ -58,9 +61,20 @@ export default function Products() {
         : categoryOptions,
     [showAllCategories, tenantCategories, categoryOptions]
   );
-  const [items, setItems] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const tenantId = tenant?.id ?? null;
+  const {
+    items,
+    setItems,
+    status,
+    errorKind,
+    errorMessage,
+    offlineServed,
+    reload: load,
+  } = useTenantScopedList<Product>(
+    'products',
+    tenantId,
+    tenantId != null ? `/api/products?tenant_id=${tenantId}` : null
+  );
   const [q, setQ] = useState('');
   const [open, setOpen] = useState(false);
   const [restockOpen, setRestockOpen] = useState(false);
@@ -71,6 +85,7 @@ export default function Products() {
   const [form, setForm] = useState(emptyForm);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const isWeightCat = isWeightCategory(form.category) || form.sell_by_weight || isWeightProduct({ category: form.category, unit: form.unit, sell_by_weight: form.sell_by_weight });
   const unitCost = isWeightCat
@@ -80,28 +95,23 @@ export default function Products() {
     ? Number(form.cartons || 0)
     : Number(form.cartons || 0) * Number(form.units_per_carton || 0);
 
-  const load = async () => {
-    if (!tenant?.id) return;
-    setLoading(true);
-    setError('');
-    try {
-      const [res, sRes] = await Promise.all([
-        fetch(`/api/products?tenant_id=${tenant.id}`),
-        fetch(`/api/suppliers?tenant_id=${tenant.id}`),
-      ]);
-      if (!res.ok) throw new Error('فشل التحميل');
-      setItems(await res.json());
-      if (sRes.ok) setSuppliers(await sRes.json());
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'خطأ');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Suppliers are a secondary lookup for the product form (dropdown) — a
+  // failure here must not block the products page itself, so it is kept
+  // separate from the primary useTenantScopedList status machine.
   useEffect(() => {
-    load();
-  }, [tenant?.id]);
+    if (tenantId == null) return;
+    let cancelled = false;
+    apiFetch<Supplier[]>(`/api/suppliers?tenant_id=${tenantId}`, { tenantId })
+      .then((data) => {
+        if (!cancelled) setSuppliers(data);
+      })
+      .catch(() => {
+        /* non-fatal — supplier dropdown just stays empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   const filtered = useMemo(() => {
     if (!q) return items;
@@ -131,6 +141,7 @@ export default function Products() {
       barcode: '',
     });
     setShowAllCategories(false);
+    setSaveError('');
     setOpen(true);
   };
 
@@ -159,12 +170,15 @@ export default function Products() {
       supplier_id: p.supplier_id || '',
     });
     setShowAllCategories(!tenantCategories.includes(p.category));
+    setSaveError('');
     setOpen(true);
   };
 
   const save = async () => {
     if (!form.name_ar && !form.name) return;
+    if (tenantId == null) return;
     setBusy(true);
+    setSaveError('');
     try {
       const weightMode = isWeightCategory(form.category) || form.sell_by_weight;
       const upc = weightMode ? 1 : Number(form.units_per_carton || 1) || 1;
@@ -183,69 +197,84 @@ export default function Products() {
         unit: weightMode ? 'كجم' : form.unit || 'حبة',
         image_url: form.image_url || categoryIconSrc(form.category),
         is_active: form.is_active,
-        tenant_id: tenant?.id,
+        tenant_id: tenantId,
         supplier_id: form.supplier_id ? Number(form.supplier_id) : null,
       };
-      const res = await fetch('/api/products', {
-        method: editing ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(
-          editing
-            ? {
-                id: editing.id,
-                ...payload,
-                // on edit keep absolute stock from cartons field
-                stock: stockPieces,
-              }
-            : payload
-        ),
-      });
-      if (!res.ok) throw new Error('فشل الحفظ');
+
+      if (editing) {
+        const { product, offline } = await updateProductWithOffline(
+          { id: editing.id, ...payload, stock: stockPieces },
+          tenantId
+        );
+        if (product) {
+          setItems((prev) => prev.map((p) => (p.id === editing.id ? { ...p, ...product } as Product : p)));
+        }
+        if (offline) setSaveError('');
+      } else {
+        const { product, offline } = await createProductWithOffline(payload, tenantId);
+        setItems((prev) => [product as unknown as Product, ...prev]);
+        if (offline) setSaveError('');
+      }
       setOpen(false);
-      load();
     } catch (err) {
-      console.error(err);
+      // Genuine rejection (validation/permission/etc) — surface it, keep the
+      // dialog open so the user can fix input instead of a silent no-op.
+      setSaveError(err instanceof Error ? err.message : 'فشل الحفظ');
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (id: number) => {
+    if (tenantId == null) return;
     if (!confirm('حذف المنتج؟')) return;
-    await fetch('/api/products', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    });
-    load();
+    try {
+      await deleteProductWithOffline(id, tenantId);
+      setItems((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'تعذر حذف المنتج');
+    }
   };
 
   const saveRestock = async () => {
-    if (!restockProduct) return;
+    if (!restockProduct || tenantId == null) return;
     setBusy(true);
     try {
-      await fetch('/api/products', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { product } = await updateProductWithOffline(
+        {
           id: restockProduct.id,
           add_cartons: restockCartons,
           carton_cost: restockCartonCost,
           units_per_carton: restockProduct.units_per_carton || 1,
-        }),
-      });
+        },
+        tenantId
+      );
+      if (product) {
+        setItems((prev) => prev.map((p) => (p.id === restockProduct.id ? { ...p, ...product } as Product : p)));
+      }
       setRestockOpen(false);
-      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'تعذر التوريد');
     } finally {
       setBusy(false);
     }
   };
 
-  if (loading) return <PageSkeleton />;
-  if (error) return <ErrorState description={error} onRetry={load} />;
+  if (status === 'loading') return <PageSkeleton />;
+  if (status === 'no-tenant') return <NoTenantState onRetry={load} />;
+  if (status === 'error') {
+    if (errorKind === 'permission') return <PermissionErrorState description={errorMessage} />;
+    if (errorKind === 'network') return <NetworkErrorState description={errorMessage} onRetry={load} />;
+    return <ErrorState description={errorMessage} onRetry={load} />;
+  }
 
   return (
     <div>
+      {offlineServed && (
+        <div className="mb-3">
+          <OfflineBanner visible />
+        </div>
+      )}
       <PageHeader
         title="المنتجات"
         description="فئات حسب نشاط المتجر · كرتون/حبة أو وزن · باركود"
@@ -399,6 +428,11 @@ export default function Products() {
           </div>
         }
       >
+        {saveError && (
+          <div className="mb-4 rounded-xl border border-[var(--danger)]/30 bg-danger-soft px-3 py-2 text-sm text-danger">
+            {saveError}
+          </div>
+        )}
         <div className="mb-4">
           <BarcodeScanner
             onScan={(code) => setForm((f) => ({ ...f, barcode: code }))}
