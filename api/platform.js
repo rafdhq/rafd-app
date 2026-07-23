@@ -2,13 +2,13 @@
  * Platform Domain Router (SaaS Management)
  * Handles: tenants, subscription, subscription-plans, platform-announcements, platform-payments, platform-settings
  */
-import { setCors } from './_shared/auth-middleware.js';
-import { handler as tenantsHandler } from './_shared/modules/tenants.js';
-import { handler as subscriptionHandler } from './_shared/modules/subscription.js';
-import { handler as subscriptionPlansHandler } from './_shared/modules/subscription-plans.js';
-import { handler as platformAnnouncementsHandler } from './_shared/modules/platform-announcements.js';
-import { handler as platformPaymentsHandler } from './_shared/modules/platform-payments.js';
-import { handler as platformSettingsHandler } from './_shared/modules/platform-settings.js';
+import { setCors } from './_shared/auth-middleware';
+import { handler as tenantsHandler } from './_shared/modules/tenants';
+import { handler as subscriptionHandler } from './_shared/modules/subscription';
+import { handler as subscriptionPlansHandler } from './_shared/modules/subscription-plans';
+import { handler as platformAnnouncementsHandler } from './_shared/modules/platform-announcements';
+import { handler as platformPaymentsHandler } from './_shared/modules/platform-payments';
+import { handler as platformSettingsHandler } from './_shared/modules/platform-settings';
 
 const ROUTES = {
   tenants: tenantsHandler,
