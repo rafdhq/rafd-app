@@ -383,7 +383,41 @@ supabase/p2_features.sql
 
 ---
 
-## 12. قاعدة البيانات والأمن
+## 12. قاعدة البيانات والأمن — Supabase CLI Migrations ✅
+
+> **مرحلة Infrastructure Integration + Migrations الرسمية مكتملة على `develop`**
+> راجع `docs/SETUP.md` + `supabase/README.md` + `supabase/config.toml`
+> **التنفيذ بأمر واحد:** `supabase db push` (أو `npm run db:push`)
+
+### ترتيب تنفيذ SQL (Official Supabase CLI - `supabase/migrations/`)
+
+```text
+1) supabase/migrations/20260722000001_base_schema.sql  → الجداول الأساسية (tenants, branches, products, sales...)
+2) supabase/migrations/20260722000002_storage.sql      → Bucket rafd-media + سياسات Storage
+3) supabase/migrations/20260722000003_p0_security.sql   → أعمدة ضريبة/idempotency + RLS
+4) supabase/migrations/20260722000004_p1_features.sql   → ورديات, مرتجعات, جرد, دعوات, push...
+5) supabase/migrations/20260722000005_p2_features.sql   → ولاء, أسعار, BOM, AI
+```
+
+كل الملفات **idempotent** ومرقمة زمنياً حسب معيار Supabase CLI. انظر `supabase/README.md` و `docs/workflows/supabase-migrate.yml` للـ GitHub Action التلقائي.
+
+**أمر واحد:**
+```bash
+supabase login
+supabase link --project-ref YOUR_REF
+supabase db push   # أو npm run db:push
+```
+
+### جداول الأساسية (000_base)
+- `tenants` · `branches` · `app_users` · `products` · `product_packaging`
+- `customers` · `customer_ledger` · `suppliers` · `supplier_ledger`
+- `sales` · `sale_items` · `expenses` · `bank_accounts` · `purchases` · `purchase_items`
+- `backups` · `audit_logs` · `sync_status` · `notifications` · `tenant_catalog`
+- `platform_settings` · `subscription_plans` · `tenant_subscriptions` · `device_bindings`
+
+### جداول P1
+- `cashier_shifts` · `refunds` · `refund_items` · `stocktake_sessions` · `stocktake_lines`
+- `user_invites` · `push_subscriptions` · `whatsapp_outbox`
 
 ### جداول P2
 - `loyalty_programs` · `loyalty_accounts` · `loyalty_ledger` · `loyalty_offers`
@@ -391,15 +425,13 @@ supabase/p2_features.sql
 - `recipes` · `recipe_items` · `manufacturing_orders`
 - `ai_conversations`
 
-### سكربتات
-- `supabase/p0_security.sql`
-- `supabase/p1_features.sql`
-- `supabase/p2_features.sql`
-
 ### قائمة إطلاق
-- [x] P2 APIs authz  
-- [x] جداول P2 على بيئة التطوير  
-- [ ] تشغيل `p2_features.sql` على كل إنتاج  
+- [x] Base schema جاهز `000_base_schema.sql` (إضافة جديدة في Infrastructure phase)
+- [x] Storage bucket `001_storage.sql` جاهز
+- [x] P2 APIs authz
+- [x] `.env.example` احترافي + `docs/SETUP.md` خطوة بخطوة
+- [x] `vercel.json` منظف من الأسرار (الأسرار الآن في Vercel Dashboard فقط)
+- [ ] تشغيل كل SQL على مشروعي `rafd-dev` و `rafd-prod`
 - [ ] ضبط VAPID / WhatsApp Cloud عند الحاجة  
 
 ---
@@ -428,18 +460,34 @@ supabase/p2_features.sql
 
 ---
 
-## 15. المتغيرات البيئية
+## 15. المتغيرات البيئية — Infrastructure Integration Update
 
-| المتغير | الوصف |
-|---------|--------|
-| `VITE_SUPABASE_URL` / `ANON_KEY` | الواجهة |
-| `NEXT_PUBLIC_SUPABASE_URL` | API |
-| `SUPABASE_SERVICE_ROLE_KEY` | API فقط |
-| `VITE_GOOGLE_CLIENT_ID` / `VITE_GOOGLE_AUTH_PROXY` | OAuth |
-| `SENTRY_DSN` / `VITE_SENTRY_DSN` | مراقبة |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push (اختياري) |
-| `VITE_VAPID_PUBLIC_KEY` | مفتاح عام للمتصفح (اختياري) |
-| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | واتساب Cloud (اختياري) |
+> **المرجع الرسمي الآن:** `.env.example` (موثق بالكامل 100 سطر) + `docs/SETUP.md`
+
+### Frontend (Vite - مكشوفة للمتصفح، محمية بـ RLS)
+| المتغير | مطلوب؟ | الوصف |
+|---------|--------|-------|
+| `VITE_SUPABASE_URL` | ✅ | Supabase Project URL |
+| `VITE_SUPABASE_ANON_KEY` | ✅ | Anon key (publishable) |
+| `VITE_GOOGLE_CLIENT_ID` | اختياري | Google OAuth Client ID |
+| `VITE_GOOGLE_AUTH_PROXY` | legacy | كان لـ Design Arena، اتركه فارغاً في الإنتاج |
+| `VITE_SENTRY_DSN` | اختياري | Frontend Sentry |
+| `VITE_VAPID_PUBLIC_KEY` | اختياري | Web Push public key |
+
+### Backend (Vercel api/* - سري)
+| المتغير | مطلوب؟ | الوصف |
+|---------|--------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | يطابق `VITE_SUPABASE_URL` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ | يطابق `VITE_SUPABASE_ANON_KEY` |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ سري | Service role - لا يُعرض أبداً للمتصفح |
+| `SENTRY_DSN` | اختياري | Backend Sentry |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | اختياري | Web Push VAPID (private سري) |
+| `WHATSAPP_TOKEN` / `WHATSAPP_PHONE_NUMBER_ID` | اختياري | WhatsApp Cloud API |
+| `FULLSTACK_PROJECT_REF` / `FULLSTACK_RESTORE_API_URL` | legacy | deprecated بعد الخروج من Design Arena sandbox |
+
+**كيفية الإعداد:** `cp .env.example .env.local` ثم املأ القيم من Supabase Dashboard → Settings → API. انظر `docs/SETUP.md` خطوة بخطوة.
+
+**أمان:** `.env`, `.env.local` في `.gitignore` ولن تُدفع أبداً. `vercel.json` لم يعد يحتوي `env` بأسرار (تم تنظيفه في هذه المرحلة).
 
 ---
 
@@ -463,12 +511,59 @@ npm run preview
 
 ---
 
-## 17. النشر
+## 17. النشر — Infrastructure Integration Update
 
-1. `npm test && npm run build`  
-2. تنفيذ `p0` ثم `p1` ثم `p2` SQL  
-3. ضبط الأسرار  
-4. نشر Vercel  
+> **الفرع الرسمي:** `develop` هو المصدر الوحيد للتطوير. `main` فقط للنسخ المستقرة.
+> **دليل الإعداد الكامل:** `docs/SETUP.md` + `supabase/README.md` + `docs/Infrastructure-Setup-Plan.md`
+
+### النشر المحلي Dev
+
+```bash
+git checkout develop
+cp .env.example .env.local  # املأ مفاتيح rafd-dev
+npm ci
+npm test && npm run build
+npm run dev  # http://localhost:5173
+```
+
+### تنفيذ SQL على Supabase (إلزامي - Migrations رسمية)
+
+```bash
+# الطريقة الرسمية - أمر واحد:
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push   # يطبق كل ملفات supabase/migrations/ بالترتيب الزمني
+# أو: npm run db:push
+
+# التحقق:
+supabase db pull --linked  # اختياري
+npm run db:check           # يتحقق من tenants, products, sales, bucket rafd-media
+
+# الطريقة اليدوية (احتياطي):
+# 1) supabase/migrations/20260722000001_base_schema.sql
+# 2) supabase/migrations/20260722000002_storage.sql
+# 3) supabase/migrations/20260722000003_p0_security.sql
+# 4) supabase/migrations/20260722000004_p1_features.sql
+# 5) supabase/migrations/20260722000005_p2_features.sql
+# راجع supabase/README.md + docs/SETUP.md + docs/workflows/supabase-migrate.yml
+```
+
+### نشر Vercel
+
+1. Vercel Dashboard → New Project → Import `rafdhq/rafd-app` → Branch `develop` للـ Preview، `main` للـ Production
+2. **Environment Variables:**
+   - Preview → مفاتيح `rafd-dev`
+   - Production → مفاتيح `rafd-prod`
+   - لا تضع أسرار في `vercel.json` (تم تنظيفه)
+3. Build: `npm run build` → Output: `dist`
+
+### Checklist قبل النشر
+
+- [x] `.env.example` موجود وموثق
+- [x] `vercel.json` بدون `env` سرية
+- [x] SQL مرتبة ومجربة
+- [ ] تشغيل SQL على `rafd-prod` قبل أول Beta
+- [ ] ضبط Auth Redirect URLs + Google OAuth على الدومين النهائي  
 
 ---
 

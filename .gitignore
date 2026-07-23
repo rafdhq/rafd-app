@@ -7,10 +7,37 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+.pnpm-store
+
+# Build outputs
 dist
 dist-ssr
-*.local
+build
+.next
+out
+.output
+.nuxt
+.cache
+.parcel-cache
+.svelte-kit
+.turbo
+.vite
+
+# Environment variables - NEVER commit secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*.local
+
+# Allow example file
+!.env.example
+
+# Vercel
+.vercel
 
 # Editor directories and files
 .vscode/*
@@ -23,4 +50,21 @@ dist-ssr
 *.sln
 *.sw?
 .vite-source-tags.js
-.vercel
+.vite-source-tags.js
+
+# OS
+Thumbs.db
+
+# Supabase
+supabase/.branches
+supabase/.temp
+.supabase
+
+# Coverage
+coverage
+.nyc_output
+*.lcov
+
+# Misc
+*.tsbuildinfo
+.eslintcache
