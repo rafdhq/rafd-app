@@ -60,6 +60,12 @@ import {
 } from '../lib/utils';
 import { calcTax, parseTenantTax } from '../lib/tax';
 import { createSaleWithOffline } from '../lib/offline/salesQueue';
+import {
+  resolveProductPrice,
+  type PriceList,
+  type ProductPriceRow,
+  type PriceOverride,
+} from '../lib/pricing/resolvePrice';
 
 type PayMethod = 'cash' | 'card' | 'split' | 'transfer' | 'credit' | 'wallet' | 'pos';
 
@@ -84,6 +90,12 @@ export default function POS() {
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [banks, setBanks] = useState<BankAccount[]>([]);
+  // BL-11: multi price-list state so POS resolves the correct sale price.
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [productPrices, setProductPrices] = useState<ProductPriceRow[]>([]);
+  const [customerOverrides, setCustomerOverrides] = useState<PriceOverride[]>([]);
+  const [branchOverrides, setBranchOverrides] = useState<PriceOverride[]>([]);
+  const [priceListId, setPriceListId] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [lines, setLines] = useState<CartLine[]>([]);
@@ -142,11 +154,12 @@ export default function POS() {
     }
     setLoading(true);
     try {
-      const [pRes, cRes, bRes, tRes] = await Promise.all([
+      const [pRes, cRes, bRes, tRes, prcRes] = await Promise.all([
         fetch(`/api/products?tenant_id=${tenantId}`),
         fetch(`/api/customers?tenant_id=${tenantId}`),
         fetch(`/api/bank-accounts?tenant_id=${tenantId}`),
         fetch(`/api/payment-terminals?tenant_id=${tenantId}`),
+        fetch(`/api/pricing?tenant_id=${tenantId}`),
       ]);
       if (pRes.ok) setProducts(await pRes.json());
       if (cRes.ok) setCustomers(await cRes.json());
@@ -157,6 +170,17 @@ export default function POS() {
       if (tRes.ok) {
         const list: PaymentTerminal[] = await tRes.json();
         setTerminals(list.filter((t) => t.is_active));
+      }
+      if (prcRes.ok) {
+        const d = await prcRes.json();
+        const lists: PriceList[] = d.lists || [];
+        setPriceLists(lists);
+        setProductPrices(d.product_prices || []);
+        setCustomerOverrides(d.customer_overrides || []);
+        setBranchOverrides(d.branch_overrides || []);
+        setPriceListId(
+          (prev) => prev ?? (lists.find((l) => l.is_default)?.id ?? lists[0]?.id ?? null)
+        );
       }
     } finally {
       setLoading(false);
@@ -226,12 +250,41 @@ export default function POS() {
   const tax = taxCalc.tax;
   const total = taxCalc.total;
 
+  // BL-11: resolve the effective unit price (customer → branch → price list →
+  // base) for a product. Falls back to the base price when no lists are set up.
+  const resolveUnitPrice = useCallback(
+    (productId: number, basePrice: number) => {
+      if (!priceLists.length) return basePrice;
+      return resolveProductPrice({
+        productId,
+        basePrice,
+        priceLists,
+        productPrices,
+        customerOverrides,
+        branchOverrides,
+        priceListId,
+        customerId: customer?.id ?? null,
+        branchId: currentBranch?.id ?? null,
+      }).price;
+    },
+    [priceLists, productPrices, customerOverrides, branchOverrides, priceListId, customer?.id, currentBranch?.id]
+  );
+
+  const priceProduct = useCallback(
+    (product: Product): Product => {
+      const unit = resolveUnitPrice(product.id, Number(product.price));
+      return unit !== Number(product.price) ? { ...product, price: unit } : product;
+    },
+    [resolveUnitPrice]
+  );
+
   const addProduct = (product: Product) => {
     if (isWeightProduct(product)) {
       setWeightProduct(product);
       setWeightGrams(500);
       return;
     }
+    const priced = priceProduct(product);
     setLines((prev) => {
       const idx = prev.findIndex((l) => l.product.id === product.id && !l.sold_by_weight);
       if (idx >= 0) {
@@ -239,7 +292,7 @@ export default function POS() {
         next[idx] = { ...next[idx], quantity: next[idx].quantity + 1 };
         return next;
       }
-      return [...prev, { product, quantity: 1, discount: 0, sold_by_weight: false }];
+      return [...prev, { product: priced, quantity: 1, discount: 0, sold_by_weight: false }];
     });
     if (posSettings.scanBeep) playScanBeep();
     setToast(`أُضيف: ${product.name_ar || product.name}`);
@@ -249,10 +302,11 @@ export default function POS() {
   const confirmWeightAdd = () => {
     if (!weightProduct || weightGrams <= 0) return;
     const kg = weightGrams / 1000;
+    const priced = priceProduct(weightProduct);
     setLines((prev) => [
       ...prev,
       {
-        product: weightProduct,
+        product: priced,
         quantity: kg,
         discount: 0,
         weight_g: weightGrams,
@@ -264,6 +318,23 @@ export default function POS() {
     setTimeout(() => setToast(''), 1400);
     setWeightProduct(null);
   };
+
+  // BL-11: re-price cart lines when the customer, branch, or selected price list
+  // changes — always from the catalog base price, not the already-applied price.
+  useEffect(() => {
+    setLines((prev) => {
+      if (!prev.length) return prev;
+      let changed = false;
+      const next = prev.map((l) => {
+        const base = Number(products.find((p) => p.id === l.product.id)?.price ?? l.product.price);
+        const unit = resolveUnitPrice(l.product.id, base);
+        if (Number(l.product.price) === unit) return l;
+        changed = true;
+        return { ...l, product: { ...l.product, price: unit } };
+      });
+      return changed ? next : prev;
+    });
+  }, [resolveUnitPrice, products]);
 
   const resolveBarcode = useCallback(
     (code: string) => {
@@ -568,7 +639,10 @@ export default function POS() {
       load();
     } catch (err) {
       console.error(err);
-      setToast('تعذر إتمام العملية');
+      // Surface the server message (e.g. discount over the role cap — BL-08).
+      const msg = err instanceof Error && err.message ? err.message : 'تعذر إتمام العملية';
+      setToast(msg);
+      setTimeout(() => setToast(''), 3000);
     } finally {
       setBusy(false);
     }
@@ -634,6 +708,20 @@ export default function POS() {
               <Printer className="h-3 w-3" />
               {posSettings.autoPrintThermal ? `طباعة ${posSettings.paperWidth}مم` : 'طباعة يدوية'}
             </Badge>
+            {priceLists.length > 1 && (
+              <select
+                value={priceListId ?? ''}
+                onChange={(e) => setPriceListId(Number(e.target.value) || null)}
+                title="قائمة الأسعار المطبّقة"
+                className="h-9 rounded-xl border border-app bg-surface px-2 text-xs font-medium text-app focus:outline-none focus:ring-2 focus:ring-[var(--ring)] sm:h-11 sm:px-3"
+              >
+                {priceLists.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name || l.code}
+                  </option>
+                ))}
+              </select>
+            )}
             <Button variant="outline" size="sm" className="sm:h-11 sm:px-4" onClick={() => setScannerOpen((v) => !v)}>
               كاميرا
             </Button>

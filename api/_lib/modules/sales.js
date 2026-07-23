@@ -1,6 +1,7 @@
 import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
 import { writeAudit } from '../audit.js';
+import { checkDiscountAllowed } from '../discount-policy.js';
 
 async function findIdempotentSale(tenantId, key) {
   if (!key) return null;
@@ -74,6 +75,29 @@ export const handler = withApi(
       const body = req.body || {};
       const tid = tenantId || body.tenant_id;
       if (!tid) return res.status(400).json({ error: 'tenant_id required' });
+
+      // BL-08: enforce the role's discount ceiling server-side. Cashiers are
+      // capped at a % of subtotal; over-cap sales are rejected and audited.
+      const discountGate = checkDiscountAllowed(auth?.role, body.subtotal ?? 0, body.discount ?? 0);
+      if (!discountGate.ok) {
+        await writeAudit({
+          tenantId: tid,
+          userId: auth?.profile?.id || null,
+          action: 'sale.discount_rejected',
+          entityType: 'sales',
+          entityId: null,
+          meta: {
+            role: auth?.role,
+            subtotal: Number(body.subtotal ?? 0),
+            discount: Number(body.discount ?? 0),
+            cap: discountGate.cap,
+            invoice_number: body.invoice_number,
+          },
+        });
+        return res.status(403).json({
+          error: 'الخصم يتجاوز الحد المسموح لهذا الدور — يلزم اعتماد المدير',
+        });
+      }
 
       const idem =
         body.idempotency_key ||
