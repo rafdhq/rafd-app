@@ -176,6 +176,13 @@ export function isPresetIconUrl(url?: string | null) {
   return url.startsWith(EMOJI_PREFIX) || url.startsWith('/icons/categories/') || (!url.includes('/') && !url.startsWith('http'));
 }
 
+/** A real, renderable image (uploaded photo / logo), not an emoji token or preset icon. */
+export function isRealImageUrl(url?: string | null) {
+  if (!url) return false;
+  const v = String(url).trim();
+  return v.startsWith('http://') || v.startsWith('https://') || v.startsWith('data:image/');
+}
+
 export function isEmojiToken(url?: string | null) {
   if (!url) return true;
   return url.startsWith(EMOJI_PREFIX) || (!url.includes('/') && !url.startsWith('http'));

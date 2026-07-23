@@ -12,8 +12,8 @@ export default function AdminLogin() {
   const { user, profile, loading, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@rafd.app');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -116,9 +116,6 @@ export default function AdminLogin() {
           </form>
 
           <div className="mt-6 space-y-3 text-center text-sm">
-            <div className="rounded-xl bg-white/5 px-3 py-2 text-xs text-slate-400">
-              تجريبي: admin@rafd.app / password123
-            </div>
             <Link to="/login" className="block text-teal-300 hover:text-teal-200">
               ← العودة لتسجيل دخول المتجر
             </Link>

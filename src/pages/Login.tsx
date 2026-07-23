@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, ShieldCheck, Store } from 'lucide-react';
 import Logo from '../components/brand/Logo';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -16,10 +16,8 @@ export default function Login() {
   const location = useLocation();
   const noticeFromState = (location.state as { notice?: string; email?: string } | null)?.notice;
   const emailFromState = (location.state as { notice?: string; email?: string } | null)?.email;
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState(emailFromState || 'demo@rafd.app');
-  const [password, setPassword] = useState('password123');
-  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState(emailFromState || '');
+  const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(noticeFromState || '');
@@ -40,8 +38,9 @@ export default function Login() {
     }
   }, [emailFromState, noticeFromState]);
 
-  // Superadmin never stays on store login
-  if (!loading && user && profile?.role === 'superadmin') {
+  // A pure platform super-admin (no store) goes to the admin console.
+  // A super-admin who also owns a store is Owner + Super Admin → runs the store.
+  if (!loading && user && profile?.role === 'superadmin' && !profile?.tenant_id) {
     return <Navigate to="/admin" replace />;
   }
   if (!loading && user) return <Navigate to="/dashboard" replace />;
@@ -51,7 +50,7 @@ export default function Login() {
     if (res.ok) {
       const rows = await res.json();
       const p = Array.isArray(rows) ? rows[0] : rows;
-      if (p?.role === 'superadmin') {
+      if (p?.role === 'superadmin' && !p?.tenant_id) {
         navigate('/admin');
         return;
       }
@@ -65,16 +64,6 @@ export default function Login() {
     setNotice('');
     setBusy(true);
     try {
-      if (isSignUp) {
-        // Full store setup happens in onboarding (tenant + password + owner profile)
-        navigate('/onboarding', {
-          state: {
-            prefillEmail: email,
-            prefillName: fullName,
-          },
-        });
-        return;
-      }
       const { data, error: err } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password,
@@ -154,25 +143,11 @@ export default function Login() {
                 <ShieldCheck className="h-3.5 w-3.5" />
                 آمن · متعدد المستأجرين · جاهز للإنتاج
               </div>
-              <h2 className="text-2xl font-bold text-app">
-                {isSignUp ? 'إنشاء حساب جديد' : 'تسجيل الدخول'}
-              </h2>
-              <p className="mt-1.5 text-sm text-muted">
-                {isSignUp
-                  ? 'ابدأ إعداد متجرك خلال دقائق'
-                  : 'ادخل إلى لوحة رفد لمتجرك'}
-              </p>
+              <h2 className="text-2xl font-bold text-app">تسجيل الدخول</h2>
+              <p className="mt-1.5 text-sm text-muted">ادخل إلى لوحة رفد لمتجرك</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
-                <Input
-                  label="الاسم الكامل"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="محمد أحمد"
-                />
-              )}
               <Input
                 label="البريد الإلكتروني"
                 type="email"
@@ -210,13 +185,8 @@ export default function Login() {
               )}
 
               <Button type="submit" className="w-full" size="lg" loading={busy}>
-                {isSignUp ? 'متابعة إعداد المتجر' : 'دخول'}
+                دخول
               </Button>
-              {isSignUp && (
-                <p className="text-center text-xs text-muted">
-                  إنشاء حساب جديد يتم عبر معالج إعداد المتجر مع كلمة المرور وبيانات النشاط
-                </p>
-              )}
             </form>
 
             <div className="my-5 flex items-center gap-3 text-xs text-muted">
@@ -238,27 +208,15 @@ export default function Login() {
               المتابعة عبر Google
             </Button>
 
-            <div className="mt-6 space-y-3 text-center text-sm">
-              <button
-                type="button"
-                className="text-primary font-medium"
-                onClick={() => setIsSignUp((v) => !v)}
+            <div className="mt-8 rounded-2xl border border-app bg-surface p-4 text-center">
+              <p className="text-sm text-muted">ليس لديك متجر بعد؟</p>
+              <Link
+                to="/onboarding"
+                className="mt-2 inline-flex items-center justify-center gap-2 text-sm font-semibold text-primary"
               >
-                {isSignUp ? 'لديك حساب؟ سجّل الدخول' : 'ليس لديك حساب؟ أنشئ واحداً'}
-              </button>
-              <div>
-                <Link to="/onboarding" className="text-muted hover:text-secondary">
-                  إعداد متجر جديد (Onboarding)
-                </Link>
-              </div>
-              <div>
-                <Link to="/admin/login" className="text-xs text-muted hover:text-secondary">
-                  دخول مسؤول المنصة (منفصل)
-                </Link>
-              </div>
-              <div className="rounded-xl bg-muted px-3 py-2 text-xs text-muted">
-                متجر: demo@rafd.app / password123
-              </div>
+                <Store className="h-4 w-4" />
+                إنشاء متجر جديد
+              </Link>
             </div>
           </div>
         </div>

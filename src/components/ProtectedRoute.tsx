@@ -65,7 +65,9 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (profile?.role === 'superadmin') {
+  // A pure platform super-admin (no store of their own) belongs in the admin console.
+  // A super-admin who also owns a tenant is Owner + Super Admin: allow them into the store.
+  if (profile?.role === 'superadmin' && !profile?.tenant_id) {
     return <Navigate to="/admin" replace />;
   }
 
