@@ -45,7 +45,7 @@ export async function resolveAuth(req) {
     const { data: rows } = await supabase
       .from('app_users')
       .select('*')
-      .eq('email', email)
+      .eq('email', String(email).toLowerCase())
       .order('id', { ascending: true })
       .limit(1);
     profile = rows?.[0] || null;

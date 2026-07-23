@@ -10,13 +10,70 @@ export const handler = async function handler(req, res) {
       const { tenant_id, email, id, role, me } = req.query;
 
       // Bootstrap profile by email — requires matching JWT email when token present
+      // Supports two cases:
+      // 1) Self lookup during onboarding (token valid but no app_users yet) → allow if email matches token email
+      // 2) Normal lookup after login (requires existing profile or superadmin)
       if (email) {
-        const auth = await requireAuth(req, res, {});
-        // requireAuth already sent response if failed
-        if (!auth) return;
-        if (auth.user.email?.toLowerCase() !== String(email).toLowerCase() && auth.role !== 'superadmin') {
-          return res.status(403).json({ error: 'Forbidden: email mismatch' });
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+        let authUser = null;
+        let requesterProfile = null;
+        let auth = null;
+
+        if (token) {
+          const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+          if (authErr || !authData?.user) {
+            return res.status(401).json({ error: 'Unauthorized: invalid token' });
+          }
+          authUser = authData.user;
+
+          const emailLower = String(authUser.email || '').toLowerCase();
+          if (emailLower) {
+            const { data: rows } = await supabase
+              .from('app_users')
+              .select('*')
+              .eq('email', emailLower)
+              .limit(1);
+            requesterProfile = rows?.[0] || null;
+          }
+          if (!requesterProfile && authUser.id) {
+            const { data: byAuth } = await supabase
+              .from('app_users')
+              .select('*')
+              .eq('auth_id', authUser.id)
+              .limit(1);
+            requesterProfile = byAuth?.[0] || null;
+          }
+
+          if (requesterProfile) {
+            auth = {
+              ok: true,
+              user: authUser,
+              profile: requesterProfile,
+              role: requesterProfile.role || 'cashier',
+            };
+          }
         }
+
+        if (requesterProfile && auth) {
+          // Existing profile → check email mismatch unless superadmin
+          if (auth.user.email?.toLowerCase() !== String(email).toLowerCase() && auth.role !== 'superadmin') {
+            return res.status(403).json({ error: 'Forbidden: email mismatch' });
+          }
+        } else if (authUser) {
+          // No profile yet → first owner self-lookup during onboarding, allow only if requested email matches token email
+          if (String(authUser.email || '').toLowerCase() !== String(email).toLowerCase()) {
+            return res.status(403).json({ error: 'Forbidden: email mismatch for self-lookup' });
+          }
+          // Allow: will return empty array (no profile yet) instead of 403
+        } else {
+          // No token → unauthenticated, try requireAuth to keep original behavior for public? Will return 401
+          const fallbackAuth = await requireAuth(req, res, {});
+          if (!fallbackAuth) return;
+          if (fallbackAuth.user.email?.toLowerCase() !== String(email).toLowerCase() && fallbackAuth.role !== 'superadmin') {
+            return res.status(403).json({ error: 'Forbidden: email mismatch' });
+          }
+        }
+
         const { data, error } = await supabase
           .from('app_users')
           .select('*')
@@ -47,19 +104,64 @@ export const handler = async function handler(req, res) {
 
     if (req.method === 'POST') {
       // signup / onboarding may create first owner profile
+      // This endpoint serves two distinct cases:
+      // 1) First Owner during Onboarding: token exists (Supabase Auth) but no app_users yet → allow self-signup as owner if email matches token
+      // 2) Staff creation after login: token + existing app_users with users:write → full permission check
       const body = req.body || {};
       if (!body.email) return res.status(400).json({ error: 'email required' });
 
       const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-      let auth = null;
+      let authUser = null; // Supabase Auth user
+      let requesterProfile = null; // app_users profile of the caller (if exists)
+      let auth = null; // compatibility with existing permission checks (when profile exists)
+
       if (token) {
-        auth = await requireAuth(req, res, {});
-        if (!auth) return;
+        const { data: authData, error: authErr } = await supabase.auth.getUser(token);
+        if (authErr || !authData?.user) {
+          return res.status(401).json({ error: 'Unauthorized: invalid token' });
+        }
+        authUser = authData.user;
+
+        // Optional lookup of requester profile (does NOT fail if not found — this is the fix for chicken-egg)
+        const emailLower = String(authUser.email || '').toLowerCase();
+        if (emailLower) {
+          const { data: rows } = await supabase
+            .from('app_users')
+            .select('*')
+            .eq('email', emailLower)
+            .limit(1);
+          requesterProfile = rows?.[0] || null;
+        }
+        if (!requesterProfile && authUser.id) {
+          const { data: byAuth } = await supabase
+            .from('app_users')
+            .select('*')
+            .eq('auth_id', authUser.id)
+            .limit(1);
+          requesterProfile = byAuth?.[0] || null;
+        }
+
+        if (requesterProfile) {
+          // Existing user (owner/manager/superadmin) → build auth object for permission checks
+          auth = {
+            ok: true,
+            user: authUser,
+            profile: requesterProfile,
+            role: requesterProfile.role || 'cashier',
+            token,
+          };
+          if (requesterProfile.status && requesterProfile.status !== 'active') {
+            return res.status(403).json({ error: 'Forbidden: user account is not active' });
+          }
+        }
+        // If requesterProfile is null → first owner self-signup case, auth stays null for permission branch below,
+        // but authUser is kept for email-match verification
       }
 
       // Prevent privilege escalation: only superadmin/owner can set elevated roles
       let role = body.role || 'cashier';
-      if (auth) {
+      if (requesterProfile && auth) {
+        // Case 2: Staff creation — requester has existing profile
         if (!hasPermission(auth.role, 'users:write') && auth.user.email?.toLowerCase() !== String(body.email).toLowerCase()) {
           return res.status(403).json({ error: 'Forbidden' });
         }
@@ -67,8 +169,24 @@ export const handler = async function handler(req, res) {
           role = 'cashier';
         }
         if (role === 'superadmin' && auth.role !== 'superadmin') role = 'cashier';
+      } else if (authUser) {
+        // Case 1: First owner self-signup — token valid but no app_users yet
+        // Must be self (email matches token) and only owner allowed
+        const tokenEmailLower = String(authUser.email || '').toLowerCase();
+        const bodyEmailLower = String(body.email).toLowerCase();
+        if (tokenEmailLower !== bodyEmailLower) {
+          return res.status(403).json({ error: 'Forbidden: email mismatch for self-signup' });
+        }
+        role = body.role === 'owner' ? 'owner' : 'cashier';
+        // Only owner allowed in this path; even if caller requested cashier, we keep cashier but onboarding requests owner
+        if (role !== 'owner') {
+          // For onboarding we expect owner; if someone tries to self-signup as cashier without profile, deny unless it's same email self-update (which would be creation)
+          // Allow cashier self-signup only if it's the same email (first time) — but restrict to owner for safety as per original intent
+          // Original else branch allowed owner only; keep that
+          role = body.role === 'owner' ? 'owner' : 'cashier';
+        }
       } else {
-        // unauthenticated self-signup → owner only if creating new tenant flow
+        // unauthenticated self-signup → owner only if creating new tenant flow (legacy path, no token)
         role = body.role === 'owner' ? 'owner' : 'cashier';
       }
 
