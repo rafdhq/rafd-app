@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 function isWeightItem(it, prod) {
   if (it.sold_by_weight || it.weight_g != null) return true;

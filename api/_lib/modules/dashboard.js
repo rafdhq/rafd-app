@@ -1,4 +1,4 @@
-import { supabase } from '../db-client';
+import { supabase } from '../db-client.js';
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);

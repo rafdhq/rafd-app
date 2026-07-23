@@ -1,4 +1,4 @@
-import { supabase } from '../db-client';
+import { supabase } from '../db-client.js';
 
 function parseArr(v) {
   if (Array.isArray(v)) return v.map(String).filter(Boolean);

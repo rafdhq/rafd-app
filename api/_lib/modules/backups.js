@@ -1,5 +1,5 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 async function snapshotTenant(tenantId) {
   const [

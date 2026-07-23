@@ -1,6 +1,6 @@
-import { supabase } from '../db-client';
-import { withApi } from '../handler';
-import { methodNotAllowed, setCors, requireAuth } from '../auth-middleware';
+import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
+import { methodNotAllowed, setCors, requireAuth } from '../auth-middleware.js';
 
 function token() {
   return `rafd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 8)}`;

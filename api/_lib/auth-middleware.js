@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { supabase } from './db-client';
-import { hasPermission, ROLE_PERMISSIONS } from './permissions';
+import { supabase } from './db-client.js';
+import { hasPermission, ROLE_PERMISSIONS } from './permissions.js';
 
 export { hasPermission, ROLE_PERMISSIONS };
 
@@ -140,7 +140,7 @@ export async function requireAuth(req, res, { permission, allowPlatform = false 
 
 /** User-scoped Supabase client (respects RLS when policies use auth.uid()) */
 export function createUserClient(token) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
