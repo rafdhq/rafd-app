@@ -1,8 +1,8 @@
-import { setCors } from './_shared/auth-middleware.js';
-import { handler as reportsHandler } from './_shared/modules/reports.js';
-import { handler as dashboardHandler } from './_shared/modules/dashboard.js';
-import { handler as auditLogsHandler } from './_shared/modules/audit-logs.js';
-import { handler as tenantCatalogHandler } from './_shared/modules/tenant-catalog.js';
+import { setCors } from '../api-shared/auth-middleware.js';
+import { handler as reportsHandler } from '../api-shared/modules/reports.js';
+import { handler as dashboardHandler } from '../api-shared/modules/dashboard.js';
+import { handler as auditLogsHandler } from '../api-shared/modules/audit-logs.js';
+import { handler as tenantCatalogHandler } from '../api-shared/modules/tenant-catalog.js';
 
 const ROUTES = { reports: reportsHandler, dashboard: dashboardHandler, 'audit-logs': auditLogsHandler, 'tenant-catalog': tenantCatalogHandler };
 
