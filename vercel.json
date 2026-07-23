@@ -7,151 +7,151 @@
   "rewrites": [
     {
       "source": "/api/products",
-      "destination": "/api/commerce/products"
+      "destination": "/api/commerce?resource=products"
     },
     {
       "source": "/api/customers",
-      "destination": "/api/commerce/customers"
+      "destination": "/api/commerce?resource=customers"
     },
     {
       "source": "/api/suppliers",
-      "destination": "/api/commerce/suppliers"
+      "destination": "/api/commerce?resource=suppliers"
     },
     {
       "source": "/api/sales",
-      "destination": "/api/transactions/sales"
+      "destination": "/api/transactions?resource=sales"
     },
     {
       "source": "/api/purchases",
-      "destination": "/api/transactions/purchases"
+      "destination": "/api/transactions?resource=purchases"
     },
     {
       "source": "/api/refunds",
-      "destination": "/api/transactions/refunds"
+      "destination": "/api/transactions?resource=refunds"
     },
     {
       "source": "/api/expenses",
-      "destination": "/api/financial/expenses"
+      "destination": "/api/financial?resource=expenses"
     },
     {
       "source": "/api/bank-accounts",
-      "destination": "/api/financial/bank-accounts"
+      "destination": "/api/financial?resource=bank-accounts"
     },
     {
       "source": "/api/payment-terminals",
-      "destination": "/api/financial/payment-terminals"
+      "destination": "/api/financial?resource=payment-terminals"
     },
     {
       "source": "/api/customer-ledger",
-      "destination": "/api/financial/customer-ledger"
+      "destination": "/api/financial?resource=customer-ledger"
     },
     {
       "source": "/api/supplier-ledger",
-      "destination": "/api/financial/supplier-ledger"
+      "destination": "/api/financial?resource=supplier-ledger"
     },
     {
       "source": "/api/branches",
-      "destination": "/api/operations/branches"
+      "destination": "/api/operations?resource=branches"
     },
     {
       "source": "/api/users",
-      "destination": "/api/operations/users"
+      "destination": "/api/operations?resource=users"
     },
     {
       "source": "/api/shifts",
-      "destination": "/api/operations/shifts"
+      "destination": "/api/operations?resource=shifts"
     },
     {
       "source": "/api/stocktakes",
-      "destination": "/api/operations/stocktakes"
+      "destination": "/api/operations?resource=stocktakes"
     },
     {
       "source": "/api/invites",
-      "destination": "/api/operations/invites"
+      "destination": "/api/operations?resource=invites"
     },
     {
       "source": "/api/loyalty",
-      "destination": "/api/features/loyalty"
+      "destination": "/api/features?resource=loyalty"
     },
     {
       "source": "/api/pricing",
-      "destination": "/api/features/pricing"
+      "destination": "/api/features?resource=pricing"
     },
     {
       "source": "/api/recipes",
-      "destination": "/api/features/recipes"
+      "destination": "/api/features?resource=recipes"
     },
     {
       "source": "/api/ai",
-      "destination": "/api/features/ai"
+      "destination": "/api/features?resource=ai"
     },
     {
       "source": "/api/import-export",
-      "destination": "/api/features/import-export"
+      "destination": "/api/features?resource=import-export"
     },
     {
       "source": "/api/tenants",
-      "destination": "/api/platform/tenants"
+      "destination": "/api/platform?resource=tenants"
     },
     {
       "source": "/api/subscription",
-      "destination": "/api/platform/subscription"
+      "destination": "/api/platform?resource=subscription"
     },
     {
       "source": "/api/subscription-plans",
-      "destination": "/api/platform/subscription-plans"
+      "destination": "/api/platform?resource=subscription-plans"
     },
     {
       "source": "/api/platform-announcements",
-      "destination": "/api/platform/platform-announcements"
+      "destination": "/api/platform?resource=platform-announcements"
     },
     {
       "source": "/api/platform-payments",
-      "destination": "/api/platform/platform-payments"
+      "destination": "/api/platform?resource=platform-payments"
     },
     {
       "source": "/api/platform-settings",
-      "destination": "/api/platform/platform-settings"
+      "destination": "/api/platform?resource=platform-settings"
     },
     {
       "source": "/api/notifications",
-      "destination": "/api/support/notifications"
+      "destination": "/api/support?resource=notifications"
     },
     {
       "source": "/api/push",
-      "destination": "/api/support/push"
+      "destination": "/api/support?resource=push"
     },
     {
       "source": "/api/whatsapp",
-      "destination": "/api/support/whatsapp"
+      "destination": "/api/support?resource=whatsapp"
     },
     {
       "source": "/api/upload",
-      "destination": "/api/support/upload"
+      "destination": "/api/support?resource=upload"
     },
     {
       "source": "/api/backups",
-      "destination": "/api/support/backups"
+      "destination": "/api/support?resource=backups"
     },
     {
       "source": "/api/sync",
-      "destination": "/api/support/sync"
+      "destination": "/api/support?resource=sync"
     },
     {
       "source": "/api/reports",
-      "destination": "/api/analytics/reports"
+      "destination": "/api/analytics?resource=reports"
     },
     {
       "source": "/api/dashboard",
-      "destination": "/api/analytics/dashboard"
+      "destination": "/api/analytics?resource=dashboard"
     },
     {
       "source": "/api/audit-logs",
-      "destination": "/api/analytics/audit-logs"
+      "destination": "/api/analytics?resource=audit-logs"
     },
     {
       "source": "/api/tenant-catalog",
-      "destination": "/api/analytics/tenant-catalog"
+      "destination": "/api/analytics?resource=tenant-catalog"
     },
     {
       "source": "/(.*)",

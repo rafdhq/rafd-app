@@ -24,7 +24,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const pathParts = req.url.split('?')[0].split('/').filter(Boolean);
-  const resource = pathParts[2];
+  const resource = req.query?.resource || pathParts[2];
 
   const routeHandler = ROUTES[resource];
   if (!routeHandler) {
