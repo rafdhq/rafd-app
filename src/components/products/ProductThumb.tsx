@@ -1,5 +1,5 @@
 import { cn } from '../../lib/utils';
-import { emojiToneClass, resolveProductEmoji } from '../../lib/productMedia';
+import { emojiToneClass, isRealImageUrl, resolveProductEmoji } from '../../lib/productMedia';
 import type { Product } from '../../lib/types';
 
 export default function ProductThumb({
@@ -27,6 +27,10 @@ export default function ProductThumb({
           ? { image_url: src, category: '', name_ar: name || '', name: name || '' }
           : null)
   );
+
+  // Real uploaded photo takes precedence over the emoji fallback.
+  const photoUrl = product?.image_url ?? src ?? null;
+  const hasPhoto = isRealImageUrl(photoUrl);
 
   const seed = `${emoji}-${product?.category || category || name || ''}`;
 
@@ -60,9 +64,20 @@ export default function ProductThumb({
       title={name || product?.name_ar || product?.name || ''}
       aria-hidden={!name && !product?.name_ar}
     >
-      {/* soft gloss */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/50 via-transparent to-black/[0.03] dark:from-white/10" />
-      <span className="relative z-[1] select-none leading-none drop-shadow-sm">{emoji}</span>
+      {hasPhoto ? (
+        <img
+          src={photoUrl as string}
+          alt={name || product?.name_ar || product?.name || ''}
+          loading="lazy"
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      ) : (
+        <>
+          {/* soft gloss */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/50 via-transparent to-black/[0.03] dark:from-white/10" />
+          <span className="relative z-[1] select-none leading-none drop-shadow-sm">{emoji}</span>
+        </>
+      )}
     </div>
   );
 }

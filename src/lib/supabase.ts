@@ -37,6 +37,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Offline-first: persist the session locally and auto-refresh the token so a
+// user who logged in once online stays signed in across reloads — and, together
+// with the cached profile/tenant (src/lib/offline/localSession.ts), can keep
+// working offline until they sign out manually.
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'rafd-auth',
+  },
+});
 
 export default supabase;
