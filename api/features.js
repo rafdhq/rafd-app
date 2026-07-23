@@ -1,9 +1,9 @@
-import { setCors } from './lib/auth-middleware.js';
-import { handler as loyaltyHandler } from './lib/modules/loyalty.js';
-import { handler as pricingHandler } from './lib/modules/pricing.js';
-import { handler as recipesHandler } from './lib/modules/recipes.js';
-import { handler as aiHandler } from './lib/modules/ai.js';
-import { handler as importExportHandler } from './lib/modules/import-export.js';
+import { setCors } from './_lib/auth-middleware.js';
+import { handler as loyaltyHandler } from './_lib/modules/loyalty.js';
+import { handler as pricingHandler } from './_lib/modules/pricing.js';
+import { handler as recipesHandler } from './_lib/modules/recipes.js';
+import { handler as aiHandler } from './_lib/modules/ai.js';
+import { handler as importExportHandler } from './_lib/modules/import-export.js';
 
 const ROUTES = { loyalty: loyaltyHandler, pricing: pricingHandler, recipes: recipesHandler, ai: aiHandler, 'import-export': importExportHandler };
 

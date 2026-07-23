@@ -1,9 +1,9 @@
-import { setCors } from './lib/auth-middleware.js';
-import { handler as branchesHandler } from './lib/modules/branches.js';
-import { handler as usersHandler } from './lib/modules/users.js';
-import { handler as shiftsHandler } from './lib/modules/shifts.js';
-import { handler as stocktakesHandler } from './lib/modules/stocktakes.js';
-import { handler as invitesHandler } from './lib/modules/invites.js';
+import { setCors } from './_lib/auth-middleware.js';
+import { handler as branchesHandler } from './_lib/modules/branches.js';
+import { handler as usersHandler } from './_lib/modules/users.js';
+import { handler as shiftsHandler } from './_lib/modules/shifts.js';
+import { handler as stocktakesHandler } from './_lib/modules/stocktakes.js';
+import { handler as invitesHandler } from './_lib/modules/invites.js';
 
 const ROUTES = { branches: branchesHandler, users: usersHandler, shifts: shiftsHandler, stocktakes: stocktakesHandler, invites: invitesHandler };
 

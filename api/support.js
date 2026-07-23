@@ -1,10 +1,10 @@
-import { setCors } from './lib/auth-middleware.js';
-import { handler as notificationsHandler } from './lib/modules/notifications.js';
-import { handler as pushHandler } from './lib/modules/push.js';
-import { handler as whatsappHandler } from './lib/modules/whatsapp.js';
-import { handler as uploadHandler } from './lib/modules/upload.js';
-import { handler as backupsHandler } from './lib/modules/backups.js';
-import { handler as syncHandler } from './lib/modules/sync.js';
+import { setCors } from './_lib/auth-middleware.js';
+import { handler as notificationsHandler } from './_lib/modules/notifications.js';
+import { handler as pushHandler } from './_lib/modules/push.js';
+import { handler as whatsappHandler } from './_lib/modules/whatsapp.js';
+import { handler as uploadHandler } from './_lib/modules/upload.js';
+import { handler as backupsHandler } from './_lib/modules/backups.js';
+import { handler as syncHandler } from './_lib/modules/sync.js';
 
 const ROUTES = { notifications: notificationsHandler, push: pushHandler, whatsapp: whatsappHandler, upload: uploadHandler, backups: backupsHandler, sync: syncHandler };
 
