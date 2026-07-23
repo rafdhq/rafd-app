@@ -181,10 +181,31 @@ export const handler = withApi(
       }
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
+
+      const { data: current } = await supabase.from('products').select('tenant_id').eq('id', id).maybeSingle();
+      if (!current) return res.status(404).json({ error: 'Product not found' });
+      if (tenantId && auth.role !== 'superadmin' && Number(current.tenant_id) !== Number(tenantId)) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      // BL-07: never hard-delete a product that appears on historical invoices.
+      // sale_items.product_id is ON DELETE SET NULL, so a hard delete would sever
+      // past sales from the product and corrupt sales/profit reports. Soft-delete
+      // (is_active=false) when a sales history exists; hard-delete only otherwise.
+      const { count: soldCount } = await supabase
+        .from('sale_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', id);
+      if ((soldCount || 0) > 0) {
+        const { error } = await supabase.from('products').update({ is_active: false }).eq('id', id);
+        if (error) throw error;
+        return res.status(200).json({ ok: true, soft_deleted: true });
+      }
+
       await supabase.from('product_packaging').delete().eq('product_id', id);
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) throw error;
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, soft_deleted: false });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });
