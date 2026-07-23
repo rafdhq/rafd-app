@@ -179,7 +179,7 @@
   ],
   "functions": {
     "api/*.js": {
-      "includeFiles": "api-shared/**"
+      "includeFiles": "api-shared/**/*.js"
     }
   }
 }
