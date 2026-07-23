@@ -1,9 +1,9 @@
-import { setCors } from '../api-shared/auth-middleware.js';
-import { handler as expensesHandler } from '../api-shared/modules/expenses.js';
-import { handler as bankAccountsHandler } from '../api-shared/modules/bank-accounts.js';
-import { handler as paymentTerminalsHandler } from '../api-shared/modules/payment-terminals.js';
-import { handler as customerLedgerHandler } from '../api-shared/modules/customer-ledger.js';
-import { handler as supplierLedgerHandler } from '../api-shared/modules/supplier-ledger.js';
+import { setCors } from './lib/auth-middleware.js';
+import { handler as expensesHandler } from './lib/modules/expenses.js';
+import { handler as bankAccountsHandler } from './lib/modules/bank-accounts.js';
+import { handler as paymentTerminalsHandler } from './lib/modules/payment-terminals.js';
+import { handler as customerLedgerHandler } from './lib/modules/customer-ledger.js';
+import { handler as supplierLedgerHandler } from './lib/modules/supplier-ledger.js';
 
 const ROUTES = { expenses: expensesHandler, 'bank-accounts': bankAccountsHandler, 'payment-terminals': paymentTerminalsHandler, 'customer-ledger': customerLedgerHandler, 'supplier-ledger': supplierLedgerHandler };
 

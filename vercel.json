@@ -176,10 +176,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/*.js": {
-      "includeFiles": "api-shared/**/*.js"
-    }
-  }
+  ]
 }

@@ -1,7 +1,7 @@
-import { setCors } from '../api-shared/auth-middleware.js';
-import { handler as salesHandler } from '../api-shared/modules/sales.js';
-import { handler as purchasesHandler } from '../api-shared/modules/purchases.js';
-import { handler as refundsHandler } from '../api-shared/modules/refunds.js';
+import { setCors } from './lib/auth-middleware.js';
+import { handler as salesHandler } from './lib/modules/sales.js';
+import { handler as purchasesHandler } from './lib/modules/purchases.js';
+import { handler as refundsHandler } from './lib/modules/refunds.js';
 
 const ROUTES = { sales: salesHandler, purchases: purchasesHandler, refunds: refundsHandler };
 
