@@ -1,4 +1,27 @@
 import { supabase } from '../db-client.js';
+import { requirePlatformAdmin } from '../auth-middleware.js';
+
+// Columns that exist on platform_payment_methods (migrations 001 + 013).
+function buildPayPayload(body, { partial = false } = {}) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(body, k);
+  const full = {
+    name: body.name,
+    name_ar: body.name_ar,
+    name_en: body.name_en,
+    type: body.type || 'bank',
+    provider: body.provider ?? null,
+    account_name: body.account_name ?? null,
+    account_number: body.account_number ?? null,
+    iban: body.iban ?? null,
+    instructions: body.instructions ?? null,
+    is_active: body.is_active !== false,
+    sort_order: body.sort_order ?? 0,
+  };
+  if (!partial) return Object.fromEntries(Object.entries(full).filter(([, v]) => v !== undefined));
+  const patch = {};
+  for (const key of Object.keys(full)) if (has(key)) patch[key] = full[key];
+  return patch;
+}
 
 export const handler = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,22 +39,17 @@ export const handler = async function handler(req, res) {
       return res.status(200).json(data || []);
     }
 
+    // Mutations require an authenticated superadmin.
+    const auth = await requirePlatformAdmin(req, res);
+    if (!auth) return;
+
     if (req.method === 'POST') {
-      const body = req.body || {};
+      const payload = buildPayPayload(req.body || {});
+      if (!payload.name) payload.name = payload.name_ar;
+      if (!payload.name_ar) payload.name_ar = payload.name;
       const { data, error } = await supabase
         .from('platform_payment_methods')
-        .insert({
-          name: body.name,
-          name_ar: body.name_ar,
-          type: body.type || 'bank',
-          provider: body.provider || null,
-          account_name: body.account_name || null,
-          account_number: body.account_number || null,
-          iban: body.iban || null,
-          instructions: body.instructions || null,
-          is_active: body.is_active !== false,
-          sort_order: body.sort_order ?? 0,
-        })
+        .insert(payload)
         .select()
         .single();
       if (error) throw error;
@@ -39,11 +57,13 @@ export const handler = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { id, ...rest } = req.body || {};
+      const body = req.body || {};
+      const { id } = body;
       if (!id) return res.status(400).json({ error: 'id required' });
+      const patch = buildPayPayload(body, { partial: true });
       const { data, error } = await supabase
         .from('platform_payment_methods')
-        .update(rest)
+        .update(patch)
         .eq('id', id)
         .select()
         .single();
