@@ -760,7 +760,7 @@ export default function POS() {
 
       {scannerOpen && (
         <div className="shrink-0 border-b border-app bg-surface px-2 py-2 sm:px-4 sm:py-3">
-          <BarcodeScanner onScan={resolveBarcode} autoFocusTargetId="pos-barcode-input" keepFocus />
+          <BarcodeScanner onScan={resolveBarcode} autoFocusTargetId="pos-barcode-input" keepFocus silent />
         </div>
       )}
 

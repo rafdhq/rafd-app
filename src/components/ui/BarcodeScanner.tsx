@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, CameraOff, ScanBarcode, Focus } from 'lucide-react';
 import Button from './Button';
 import { cn } from '../../lib/utils';
+import { playSuccessChime } from '../../lib/audioService';
 
 interface BarcodeScannerProps {
   onScan: (code: string) => void;
@@ -10,6 +11,17 @@ interface BarcodeScannerProps {
   /** Keep focusing a target input for hardware wedge scanners */
   autoFocusTargetId?: string;
   keepFocus?: boolean;
+  /**
+   * On the first valid camera decode: play the success sound, close the camera
+   * and emit exactly once (no repeated reads). Default true. Set false only if
+   * you intentionally want the camera to keep scanning until manually stopped.
+   */
+  singleShotCamera?: boolean;
+  /**
+   * Suppress the scanner's own success sound — use when the caller already
+   * plays feedback (e.g. POS beeps on add-to-cart).
+   */
+  silent?: boolean;
 }
 
 /**
@@ -24,6 +36,8 @@ export default function BarcodeScanner({
   compact,
   autoFocusTargetId,
   keepFocus = false,
+  singleShotCamera = true,
+  silent = false,
 }: BarcodeScannerProps) {
   const [cameraOn, setCameraOn] = useState(false);
   const [error, setError] = useState('');
@@ -38,6 +52,13 @@ export default function BarcodeScanner({
   const bufferRef = useRef('');
   const lastKeyTime = useRef(0);
   const lastScanAt = useRef(0);
+  // Latch so a single camera session emits exactly once (prevents repeated reads).
+  const cameraLatchRef = useRef(false);
+  // Latest-value refs so the camera/keyboard handlers always invoke the current
+  // callbacks WITHOUT listing them as effect dependencies (which would re-arm the
+  // camera on every render). They are updated in an effect, never during render.
+  const onScanRef = useRef(onScan);
+  const emitScanRef = useRef<(code: string) => void>(() => undefined);
 
   const emitScan = (code: string) => {
     const now = Date.now();
@@ -45,8 +66,13 @@ export default function BarcodeScanner({
     if (now - lastScanAt.current < 400 && lastCode === code) return;
     lastScanAt.current = now;
     setLastCode(code);
-    onScan(code);
+    onScanRef.current(code);
   };
+
+  useEffect(() => {
+    onScanRef.current = onScan;
+    emitScanRef.current = emitScan;
+  });
 
   // Keep POS barcode field focused for continuous scanning
   useEffect(() => {
@@ -117,6 +143,8 @@ export default function BarcodeScanner({
     const start = async () => {
       if (!cameraOn) return;
       setError('');
+      // A fresh camera session may scan again.
+      cameraLatchRef.current = false;
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
         if (cancelled) return;
@@ -127,7 +155,15 @@ export default function BarcodeScanner({
           { fps: 12, qrbox: { width: 260, height: 150 }, aspectRatio: 1.777 },
           (decoded) => {
             if (!decoded) return;
-            emitScan(decoded);
+            // Single-shot: ignore every frame after the first valid decode so
+            // the same code is never emitted twice in one session.
+            if (singleShotCamera && cameraLatchRef.current) return;
+            cameraLatchRef.current = true;
+            if (!silent) playSuccessChime();
+            emitScanRef.current(decoded);
+            // Close the camera immediately after the first valid read. The
+            // [cameraOn] effect cleanup stops & clears the scanner.
+            if (singleShotCamera) setCameraOn(false);
           },
           () => {
             /* ignore frame errors */
@@ -151,7 +187,7 @@ export default function BarcodeScanner({
           .catch(() => undefined);
       }
     };
-  }, [cameraOn]);
+  }, [cameraOn, silent, singleShotCamera]);
 
   return (
     <div className={cn('space-y-2', className)}>
