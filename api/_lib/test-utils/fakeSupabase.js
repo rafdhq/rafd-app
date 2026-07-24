@@ -103,6 +103,31 @@ class FakeQueryBuilder {
     const table = this.store.table(this.table);
 
     if (this._op === 'insert') {
+      // Enforce unique constraints for app_users to simulate race condition protection
+      if (this.table === 'app_users') {
+        for (const newRow of this._insertRows) {
+          const emailLower = String(newRow.email || '').toLowerCase();
+          if (emailLower) {
+            const dupEmail = table.find((r) => String(r.email || '').toLowerCase() === emailLower);
+            if (dupEmail) {
+              return {
+                data: null,
+                error: { message: 'duplicate key value violates unique constraint \"idx_app_users_email\"', code: '23505' },
+              };
+            }
+          }
+          if (newRow.auth_id) {
+            const dupAuth = table.find((r) => r.auth_id && r.auth_id === newRow.auth_id);
+            if (dupAuth) {
+              return {
+                data: null,
+                error: { message: 'duplicate key value violates unique constraint \"idx_app_users_auth_unique\"', code: '23505' },
+              };
+            }
+          }
+        }
+      }
+
       const inserted = this._insertRows.map((r) => ({
         id: this.store.nextId(this.table),
         created_at: new Date().toISOString(),
