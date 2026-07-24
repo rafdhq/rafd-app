@@ -279,4 +279,87 @@ describe('users handler — onboarding chicken-egg fix', () => {
     // For non-existing user, it returns empty array 200, not 403
     expect(res.statusCode).toBe(200);
   });
+
+  it('Race condition: two concurrent POST /api/users with same email results in only one row (idempotent)', async () => {
+    // Simulate Onboarding double-click or retry: two requests arrive at same time
+    // Both see existing == null, both try INSERT, second should be handled gracefully
+    supabase.setAuthUser(NEW_OWNER_AUTH);
+
+    const reqA = mockReq({
+      method: 'POST',
+      token: 'fake-jwt-a',
+      body: {
+        tenant_id: 4,
+        auth_id: NEW_OWNER_AUTH.id,
+        email: NEW_OWNER_AUTH.email,
+        full_name: 'مالك الوسابي',
+        role: 'owner',
+        status: 'active',
+      },
+    });
+    const reqB = mockReq({
+      method: 'POST',
+      token: 'fake-jwt-b',
+      body: {
+        tenant_id: 4,
+        auth_id: NEW_OWNER_AUTH.id,
+        email: NEW_OWNER_AUTH.email,
+        full_name: 'مالك الوسابي',
+        role: 'owner',
+        status: 'active',
+      },
+    });
+
+    // Fire both concurrently
+    const resA = mockRes();
+    const resB = mockRes();
+    const [a, b] = await Promise.all([
+      usersHandler(reqA, resA).then(() => resA),
+      usersHandler(reqB, resB).then(() => resB),
+    ]);
+
+    // One should succeed 201, other should succeed 200 idempotent (or 201 but our fake enforces unique)
+    // In real DB with UNIQUE index, second would get 23505 and we return existing 200
+    const successStatuses = [a.statusCode, b.statusCode].filter((c) => c === 201 || c === 200);
+    expect(successStatuses.length).toBe(2); // both should return success (one 201, one 200 idempotent)
+
+    // Verify only ONE row in app_users for that email (no duplicates)
+    const { data: allUsers } = await supabase.from('app_users').select('*').eq('email', NEW_OWNER_AUTH.email);
+    expect(allUsers).toHaveLength(1);
+    expect(allUsers[0].email).toBe(NEW_OWNER_AUTH.email);
+    expect(allUsers[0].tenant_id).toBe(4);
+
+    // Verify total app_users = 2 (superadmin + one owner), not 3
+    const { data: total } = await supabase.from('app_users').select('*');
+    expect(total).toHaveLength(2);
+  });
+
+  it('Race condition: same auth_id with different emails is prevented by unique index', async () => {
+    supabase.setAuthUser(NEW_OWNER_AUTH);
+    const res1 = mockRes();
+    await usersHandler(
+      mockReq({
+        method: 'POST',
+        token: 'fake-jwt',
+        body: { tenant_id: 4, auth_id: NEW_OWNER_AUTH.id, email: NEW_OWNER_AUTH.email, full_name: 'Owner', role: 'owner' },
+      }),
+      res1
+    );
+    expect(res1.statusCode).toBe(201);
+
+    // Second request with same auth_id but different email should fail or be blocked by unique index
+    const res2 = mockRes();
+    await usersHandler(
+      mockReq({
+        method: 'POST',
+        token: 'fake-jwt',
+        body: { tenant_id: 4, auth_id: NEW_OWNER_AUTH.id, email: 'other@test.rafd', full_name: 'Other', role: 'owner' },
+      }),
+      res2
+    );
+    // Our fake enforces unique auth_id, so second should fail duplicate or be blocked by email mismatch
+    // Either 403 (email mismatch) or 200/201 with existing (idempotent) is acceptable, but NOT a second row with same auth_id
+    const { data: byAuth } = await supabase.from('app_users').select('*').eq('auth_id', NEW_OWNER_AUTH.id);
+    expect(byAuth).toHaveLength(1); // still only one row with this auth_id
+  });
 });

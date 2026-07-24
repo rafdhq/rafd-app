@@ -216,6 +216,9 @@ export const handler = async function handler(req, res) {
         return res.status(200).json(data);
       }
 
+      // Race protection: email has UNIQUE index, auth_id will have partial UNIQUE after migration 000012
+      // If two concurrent requests both passed the "existing == null" check, one INSERT will fail with 23505 duplicate
+      // In that case we return the existing row (idempotent success) instead of 500
       const { data, error } = await supabase
         .from('app_users')
         .insert({
@@ -231,7 +234,42 @@ export const handler = async function handler(req, res) {
         })
         .select()
         .single();
-      if (error) throw error;
+
+      if (error) {
+        const msg = String(error.message || '').toLowerCase();
+        const isDuplicate = msg.includes('duplicate') || msg.includes('already exists') || (error.code && String(error.code) === '23505');
+        if (isDuplicate) {
+          // Another concurrent request inserted first — return existing (idempotent)
+          const { data: raced } = await supabase
+            .from('app_users')
+            .select('*')
+            .eq('email', String(body.email).toLowerCase())
+            .maybeSingle();
+          if (raced?.id) {
+            // If raced row has no auth_id yet but we have one, update it (first owner linking)
+            if (!raced.auth_id && body.auth_id) {
+              const { data: updated } = await supabase
+                .from('app_users')
+                .update({ auth_id: body.auth_id, tenant_id: body.tenant_id ?? raced.tenant_id })
+                .eq('id', raced.id)
+                .select()
+                .single();
+              return res.status(200).json(updated || raced);
+            }
+            return res.status(200).json(raced);
+          }
+          // Fallback: try by auth_id if email lookup failed (should not happen due to email unique, but handle)
+          if (body.auth_id) {
+            const { data: byAuth } = await supabase
+              .from('app_users')
+              .select('*')
+              .eq('auth_id', body.auth_id)
+              .maybeSingle();
+            if (byAuth?.id) return res.status(200).json(byAuth);
+          }
+        }
+        throw error;
+      }
       return res.status(201).json(data);
     }
 
