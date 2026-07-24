@@ -43,49 +43,9 @@ export function savePosSettings(patch: Partial<PosHardwareSettings>) {
   return next;
 }
 
-export function playScanBeep() {
-  try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = 'square';
-    o.frequency.value = 1800;
-    g.gain.value = 0.04;
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start();
-    setTimeout(() => {
-      o.stop();
-      ctx.close();
-    }, 70);
-  } catch {
-    /* ignore */
-  }
-}
-
-export function playSuccessChime() {
-  try {
-    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const o = ctx.createOscillator();
-    const g = ctx.createGain();
-    o.type = 'sine';
-    o.frequency.value = 880;
-    g.gain.value = 0.05;
-    o.connect(g);
-    g.connect(ctx.destination);
-    o.start();
-    setTimeout(() => {
-      o.frequency.value = 1175;
-    }, 90);
-    setTimeout(() => {
-      o.stop();
-      ctx.close();
-    }, 180);
-  } catch {
-    /* ignore */
-  }
-}
+// Sounds now live in the shared Audio Service (src/lib/audioService.ts), which
+// keeps a single unlocked AudioContext so feedback plays reliably even when
+// triggered after an `await` or from a scanner. Re-exported here so existing
+// `import { playScanBeep, playSuccessChime } from '../lib/posSettings'` call
+// sites keep working unchanged.
+export { playScanBeep, playSuccessChime } from './audioService';

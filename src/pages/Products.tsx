@@ -19,6 +19,7 @@ import { createProductWithOffline, updateProductWithOffline, deleteProductWithOf
 import { apiFetch } from '../lib/apiClient';
 import type { Product, Supplier } from '../lib/types';
 import { formatMoney, isWeightProduct, unitCostFromCarton } from '../lib/utils';
+import { playSuccessChime } from '../lib/audioService';
 import {
   categorySelectOptions,
   getCategoryMeta,
@@ -215,6 +216,8 @@ export default function Products() {
         setItems((prev) => [product as unknown as Product, ...prev]);
         if (offline) setSaveError('');
       }
+      // Audible confirmation that the product was saved (uses shared Audio Service).
+      playSuccessChime();
       setOpen(false);
     } catch (err) {
       // Genuine rejection (validation/permission/etc) — surface it, keep the
