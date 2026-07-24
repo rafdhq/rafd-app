@@ -665,11 +665,12 @@ export default function SuperAdmin() {
           <Table>
             <THead>
               <TH>المتجر</TH>
-              <TH>التواصل</TH>
+              <TH>صاحب المتجر</TH>
               <TH>الباقة</TH>
-              <TH>العملة</TH>
               <TH>الحالة</TH>
-              <TH>تاريخ الانضمام</TH>
+              <TH>البداية</TH>
+              <TH>الانتهاء</TH>
+              <TH>الفوترة</TH>
               <TH></TH>
             </THead>
             <TBody>
@@ -685,24 +686,25 @@ export default function SuperAdmin() {
                     </div>
                   </TD>
                   <TD>
-                    <div className="text-sm">{t.email || '—'}</div>
-                    <div className="text-xs text-muted" dir="ltr">{t.phone || '—'}</div>
+                    <div className="text-sm">{t.owner?.full_name || t.email || '—'}</div>
+                    <div className="text-xs text-muted">{t.owner?.email || t.email || '—'}</div>
                   </TD>
-                  <TD><Badge tone="primary">{t.plan}</Badge></TD>
-                  <TD>{t.currency}</TD>
+                  <TD><Badge tone="primary">{t.plan_code || t.plan || '—'}</Badge></TD>
                   <TD>
                     <Badge tone={t.status === 'active' ? 'success' : t.status === 'trial' ? 'accent' : 'warning'}>
-                      {t.status}
+                      {t.status || '—'}
                     </Badge>
                   </TD>
-                  <TD>{formatDate(t.created_at)}</TD>
+                  <TD>{formatDate(t.subscription_starts_at || t.trial_starts_at || t.created_at)}</TD>
+                  <TD>{formatDate(t.subscription_ends_at || t.trial_ends_at || '')}</TD>
+                  <TD>{t.billing_cycle || '—'}</TD>
                   <TD>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => {
                         setTenantEdit(t);
-                        setTenantForm({ plan: t.plan || 'growth', status: t.status || 'active', days: 30 });
+                        setTenantForm({ plan: t.plan_code || t.plan || 'growth', status: t.status || 'active', days: 30 });
                       }}
                     >
                       إدارة

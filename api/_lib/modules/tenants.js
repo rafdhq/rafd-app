@@ -152,10 +152,18 @@ export const handler = async function handler(req, res) {
         }
         const { data, error } = await supabase
           .from('tenants')
-          .select('*')
+          .select('id, name, name_ar, email, phone, status, currency, created_at, updated_at, plan, logo_url, business_type, address, primary_color, secondary_color, invoice_footer, tenant_subscriptions!left(id, tenant_id, status, billing_cycle, trial_starts_at, trial_ends_at, subscription_starts_at, subscription_ends_at, amount, currency, notes, plan_code, updated_at, created_at), app_users!left(id, full_name, email, role, status, auth_id, tenant_id)')
           .order('id', { ascending: true });
         if (error) throw error;
-        const rows = await Promise.all((data || []).map((r) => withCatalog(r)));
+        const rows = await Promise.all((data || []).map((r) => {
+          const sub = (r.tenant_subscriptions || [])[0] || null;
+          const user = (r.app_users || [])[0] || null;
+          // subscription_plan info is fetched separately via sub.plan_code if needed; we keep it minimal
+          const merged = { ...r, ...sub, owner: user };
+          delete merged.tenant_subscriptions;
+          delete merged.app_users;
+          return withCatalog(merged);
+        }));
         return res.status(200).json(rows);
       }
 
