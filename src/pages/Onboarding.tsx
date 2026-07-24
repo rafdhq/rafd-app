@@ -243,7 +243,32 @@ export default function Onboarding() {
       const tenant = await tRes.json();
       createdTenantId = tenant.id;
 
-      // 3) Main branch
+      // 3) Start trial + bind device (must succeed before continuing)
+      const trialRes = await fetch('/api/subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'init-trial',
+          tenant_id: tenant.id,
+          plan_code: form.plan || 'growth',
+          device_id: deviceId,
+          owner_email: ownerEmail,
+          owner_name: form.owner_name.trim(),
+          store_name: storeNameAr,
+        }),
+      });
+      if (!trialRes.ok) {
+        const errBody = await trialRes.json().catch(() => ({}));
+        if (errBody.code === 'DEVICE_TRIAL_USED') {
+          throw new Error(
+            errBody.error ||
+              'هذا الجهاز مرتبط بفترة تجريبية سابقة. تواصل مع الإدارة للتفعيل.'
+          );
+        }
+        throw new Error(errBody.error || 'فشل إنشاء الاشتراك التجريبي — لا يمكن إنشاء متجر بدون اشتراك');
+      }
+
+      // 4) Main branch
       const bRes = await fetch('/api/branches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -304,31 +329,7 @@ export default function Onboarding() {
         }
       }
 
-      // 5) Start trial + bind device (prevents multi free trials)
-      const trialRes = await fetch('/api/subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'init-trial',
-          tenant_id: tenant.id,
-          plan_code: form.plan || 'growth',
-          device_id: deviceId,
-          owner_email: ownerEmail,
-          owner_name: form.owner_name.trim(),
-          store_name: storeNameAr,
-        }),
-      });
-      if (!trialRes.ok) {
-        const errBody = await trialRes.json().catch(() => ({}));
-        if (errBody.code === 'DEVICE_TRIAL_USED') {
-          throw new Error(
-            errBody.error ||
-              'هذا الجهاز مرتبط بفترة تجريبية سابقة. تواصل مع الإدارة للتفعيل.'
-          );
-        }
-      }
-
-      // 6) Sync status seed
+      // 5) Sync status seed
       await fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

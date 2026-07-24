@@ -9,7 +9,7 @@ export const handler = async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const { active } = req.query;
-      let q = supabase.from('subscription_plans').select('*').order('sort_order', { ascending: true });
+      let q = supabase.from('subscription_plans').select('*').order('name', { ascending: true });
       if (active === '1' || active === 'true') q = q.eq('is_active', true);
       const { data, error } = await q;
       if (error) throw error;
@@ -35,7 +35,6 @@ export const handler = async function handler(req, res) {
           features: body.features || [],
           is_popular: !!body.is_popular,
           is_active: body.is_active !== false,
-          sort_order: body.sort_order ?? 0,
         })
         .select()
         .single();
@@ -44,7 +43,7 @@ export const handler = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { id, ...rest } = req.body || {};
+      const { id, sort_order, ...rest } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
       const { data, error } = await supabase
         .from('subscription_plans')

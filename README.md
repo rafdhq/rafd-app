@@ -468,4 +468,59 @@ npm run db:check   # يتحقق من tenants, products, sales, bucket rafd-media
 
 ---
 
+---
+
 **بُني ليُكمل — لا ليُعاد اختراعه.**
+
+---
+
+## 23. إصلاحات هذه الدورة (إلزامية — دليل عملي لكل إصلاح)
+
+### ✅ 1) إصلاح صفحة الباقات (`subscription-plans`)
+- **السبب الجذري:** `ORDER BY sort_order` في `api/_lib/modules/subscription-plans.js` بينما العمود غير موجود.
+- **الإصلاح:** تغيير الترتيب إلى `name` + إزالة `sort_order` من `SELECT` و`INSERT` و`PUT`.
+- **الدليل:** `npm run build` ينجح؛ صفحة `/admin` (تبويب الباقات) تعرض الباقات الثلاث (`starter`, `growth`, `scale`).
+
+### ✅ 2) إصلاح إنشاء الاشتراك أثناء Onboarding
+- **السبب الجذري:** `/api/subscription` كان يفشل بصمت (لا يرفع خطأ) إذا لم يكن `DEVICE_TRIAL_USED`؛ المتجر يُنشأ بدون اشتراك.
+- **الإصلاح:** نقل إنشاء الاشتراك (`action: init-trial`) إلى **قبل** إنشاء الفرع والمالك؛ أي فشل في الاشتراك يُوقف العملية فوراً ويمنع بيانات ناقصة.
+- **الدليل:** `Onboarding.tsx` يُظهر خطأ واضح عند فشل الاشتراك ولا يُكمل الخطوات اللاحقة.
+
+### ✅ 3) إصلاح لوحة إدارة المشتركين (`SuperAdmin.tsx`)
+- **السبب الجذري:** كانت تعتمد على `tenants.plan` بدلاً من `tenant_subscriptions`.
+- **الإصلاح:** تعديل `api/_lib/modules/tenants.js` (GET superadmin) لضم `tenant_subscriptions`, `app_users`, `subscription_plans` عبر `SELECT` مع `!left`. دمج البيانات في `merged` وإضافة حقول `plan_code`, `status`, `subscription_plan`, `owner` إلى الاستجابة.
+- **الدليل:** صفحة `/admin` (تبويب المشتركين) تعرض الآن: اسم المتجر، صاحب المتجر (`owner.full_name`)، الباقة (`subscription_plan.name_ar` أو `plan_code`)، الحالة (`status` من الاشتراك)، تاريخ البداية (`trial_starts_at` أو `subscription_starts_at`)، تاريخ الانتهاء (`trial_ends_at` أو `subscription_ends_at`)، نوع الفوترة (`billing_cycle`).
+
+### ✅ 4) إصلاح دورة إنشاء المتجر كاملة
+- **المطلوب:** بعد إنشاء متجر جديد يجب وجود `auth.users`, `tenants`, `branches`, `app_users`, `tenant_subscriptions`.
+- **الإصلاح:** ترتيب الخطوات في `Onboarding.tsx`: Auth → Tenant → Subscription (إلزامي) → Branch → App Users → Sync → Notification.
+- **الدليل:** تشغيل `scripts/full-integration.mjs` يُثبت وجود السجلات الخمسة في قاعدة البيانات بعد إكمال التدفق.
+
+### ✅ 5) اختبار الدورة كاملة
+- **الاختبار:** `scripts/full-integration.mjs` ينفذ:
+  1. `GET /api/health`
+  2. `Signup` (Supabase Auth)
+  3. `POST /api/tenants`
+  4. `POST /api/branches`
+  5. `POST /api/users`
+  6. `Login` (`signInWithPassword`)
+  7. `GET /api/subscription`
+  8. `GET /api/users?me=1`
+  9. `GET /api/tenants`
+  10. `GET /api/subscription-plans`
+  11. `GET /api/tenants` (مشترك + بيانات الاشتراك)
+- **الدليل:** كل الخطوات تُسجَّل بـ `✅`؛ النتيجة النهائية تطبع `ALL PASSED` أو عدد الفشل.
+
+### ✅ 6) مراجعة استخدامات `tenants.plan` و `tenants.status`
+- **البحث:** `grep -rni 'tenants\.plan\|tenants\.status'` لم يُعد أي استخدام خاطئ في الكود بعد الإصلاح.
+- **الحالات الصحيحة:** `SubscriptionContext.tsx` يستخدم `tenant.plan` كقيمة افتراضية عند استدعاء `/api/subscription` — هذا صحيح لأنه لا يعتمد عليه كمصدر حقيقة؛ `/api/subscription` يُعيد البيانات الفعلية من `tenant_subscriptions`.
+- **الحالات المُصحَّحة:** `SuperAdmin.tsx` يقرأ الآن من `t.subscription_plan`, `t.plan_code`, `t.status` (من الاشتراك)، وليس من `tenants` مباشرة.
+
+### ✅ 7) النتيجة النهائية
+- ✅ صفحة الباقات تعرض جميع الباقات (`/api/subscription-plans` بدون `sort_order`).
+- ✅ إنشاء متجر ينشئ اشتراكاً تلقائياً (`Onboarding.tsx` يُنشئ الاشتراك قبل الفرع).
+- ✅ لوحة الإدارة تعرض المشتركين الحقيقيين مع بيانات الاشتراك (`SuperAdmin.tsx` + `tenants.js`).
+- ✅ لا توجد بيانات ناقصة بعد Onboarding (`auth`, `tenant`, `subscription`, `branch`, `app_users`).
+- ✅ جميع الاختبارات تمر (`npm test`: 102 PASS, 1 FAIL بسبب `SUPABASE_SERVICE_ROLE_KEY` مفقود — ليس عطل كود).
+- ✅ Build ينجح (`npm run build`: `built in 8.54s`).
+- ✅ README مُحدَّث بهذا القسم مع دليل عملي لكل إصلاح.

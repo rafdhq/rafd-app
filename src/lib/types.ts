@@ -20,6 +20,15 @@ export interface Tenant {
   enabled_categories?: string[] | null;
   /** Extra custom category labels */
   custom_categories?: string[] | null;
+  // Subscription fields (merged from tenant_subscriptions for admin/subscriber views)
+  plan_code?: string | null;
+  billing_cycle?: string | null;
+  trial_starts_at?: string | null;
+  trial_ends_at?: string | null;
+  subscription_starts_at?: string | null;
+  subscription_ends_at?: string | null;
+  subscription_plan?: { name?: string; name_ar?: string; code?: string } | null;
+  owner?: { full_name?: string; email?: string; role?: string } | null;
 }
 
 export interface Branch {
