@@ -1,4 +1,5 @@
 import { supabase } from '../db-client.js';
+import { requirePlatformAdmin } from '../auth-middleware.js';
 
 const DEFAULTS = {
   app_name: 'RAFD',
@@ -46,6 +47,10 @@ export const handler = async function handler(req, res) {
     }
 
     if (req.method === 'PUT' || req.method === 'POST') {
+      // Mutating platform settings is restricted to the superadmin.
+      const auth = await requirePlatformAdmin(req, res);
+      if (!auth) return;
+
       const body = req.body || {};
       const { data: existing } = await supabase
         .from('platform_settings')

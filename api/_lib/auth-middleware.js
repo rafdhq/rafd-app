@@ -162,6 +162,19 @@ export function createUserClient(token) {
   );
 }
 
+export async function requirePlatformAdmin(req, res) {
+  const auth = await resolveAuth(req);
+  if (!auth.ok) {
+    res.status(auth.status).json({ error: auth.error });
+    return null;
+  }
+  if (auth.role !== 'superadmin') {
+    res.status(403).json({ error: 'Forbidden: platform admin (superadmin) only' });
+    return null;
+  }
+  return auth;
+}
+
 export function methodNotAllowed(res) {
   return res.status(405).json({ error: 'Method not allowed' });
 }
