@@ -1,6 +1,13 @@
 # RAFD Enterprise Production Audit — Verification Prompt for Claude
 
-> **Purpose:** Send this entire document to Claude (Anthropic) as a single prompt. Claude will review the audit findings, reason about their accuracy based on the provided evidence, and produce a verification report confirming, challenging, or refining each finding.
+> **⚠️ HISTORICAL DOCUMENT — superseded.**
+>
+> This was a verification prompt built on the pre-PR #12 audit. **Most findings it asks to verify have since been fixed and merged into `main`** (API auth gates, schema drift, subscription duplication, referential integrity, CORS, payment-proof privacy).
+>
+> Do not treat its findings as the current state. For the current state see
+> [`OPEN_ISSUES_INVESTIGATION_2026-07-25.md`](OPEN_ISSUES_INVESTIGATION_2026-07-25.md) and [`../README.md`](../README.md).
+
+> **Original purpose:** Send this entire document to Claude (Anthropic) as a single prompt. Claude will review the audit findings, reason about their accuracy based on the provided evidence, and produce a verification report confirming, challenging, or refining each finding.
 
 ---
 
