@@ -1,5 +1,5 @@
 import { supabase } from '../db-client.js';
-import { requirePlatformAdmin } from '../auth-middleware.js';
+import { requirePlatformAdmin, setCors } from '../auth-middleware.js';
 
 const DEFAULTS = {
   app_name: 'RAFD',
@@ -21,9 +21,7 @@ const DEFAULTS = {
 };
 
 export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(req, res, 'GET, POST, PUT, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {

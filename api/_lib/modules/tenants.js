@@ -1,5 +1,5 @@
 import { supabase } from '../db-client.js';
-import { resolveAuth, assertPermission } from '../auth-middleware.js';
+import { resolveAuth, assertPermission, setCors } from '../auth-middleware.js';
 
 /** Requests-per-IP allowed against the public onboarding POST within the window. */
 const ONBOARDING_MAX_PER_HOUR = 10;
@@ -118,9 +118,7 @@ async function withCatalog(row) {
 }
 
 export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(req, res, 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {

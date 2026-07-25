@@ -8,7 +8,7 @@ import { handler as importExportHandler } from './_lib/modules/import-export.js'
 const ROUTES = { loyalty: loyaltyHandler, pricing: pricingHandler, recipes: recipesHandler, ai: aiHandler, 'import-export': importExportHandler };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   const resource = req.query?.resource || req.url.split('?')[0].split('/').filter(Boolean)[2];
   const routeHandler = ROUTES[resource];

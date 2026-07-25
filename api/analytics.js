@@ -7,7 +7,7 @@ import { handler as tenantCatalogHandler } from './_lib/modules/tenant-catalog.j
 const ROUTES = { reports: reportsHandler, dashboard: dashboardHandler, 'audit-logs': auditLogsHandler, 'tenant-catalog': tenantCatalogHandler };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   const resource = req.query?.resource || req.url.split('?')[0].split('/').filter(Boolean)[2];
   const routeHandler = ROUTES[resource];

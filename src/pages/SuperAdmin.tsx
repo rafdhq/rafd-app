@@ -761,14 +761,18 @@ export default function SuperAdmin() {
                     </div>
                     {!!p.notes && <div className="text-xs text-secondary">ملاحظة: {String(p.notes)}</div>}
                     {!!p.proof_url && (
-                      <a
-                        href={String(p.proof_url)}
-                        target="_blank"
-                        rel="noreferrer"
+                      <button
+                        type="button"
                         className="inline-block text-sm text-primary underline"
+                        onClick={async () => {
+                          const r = await fetch(`/api/subscription?action=proof-url&payment_id=${p.id}`);
+                          if (!r.ok) return alert('تعذر جلب رابط الإثبات');
+                          const { signed_url } = await r.json();
+                          window.open(signed_url, '_blank', 'noreferrer');
+                        }}
                       >
                         عرض إثبات التحويل
-                      </a>
+                      </button>
                     )}
                   </div>
                   {p.status === 'pending' && (

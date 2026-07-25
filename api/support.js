@@ -9,7 +9,7 @@ import { handler as syncHandler } from './_lib/modules/sync.js';
 const ROUTES = { notifications: notificationsHandler, push: pushHandler, whatsapp: whatsappHandler, upload: uploadHandler, backups: backupsHandler, sync: syncHandler };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   const resource = req.query?.resource || req.url.split('?')[0].split('/').filter(Boolean)[2];
   const routeHandler = ROUTES[resource];

@@ -1,5 +1,5 @@
 import { supabase } from '../db-client.js';
-import { resolveAuth, requirePlatformAdmin } from '../auth-middleware.js';
+import { resolveAuth, requirePlatformAdmin, setCors } from '../auth-middleware.js';
 
 const ONBOARDING_MAX_PER_HOUR = 10;
 function clientIp(req) { const xff = req.headers['x-forwarded-for'] || req.headers['X-Forwarded-For'] || ''; return String(xff).split(',')[0].trim() || req.socket?.remoteAddress || 'unknown'; }
@@ -157,9 +157,7 @@ async function refreshExpired(sub) {
 }
 
 export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(req, res, 'GET, POST, PUT, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
@@ -211,6 +209,24 @@ export const handler = async function handler(req, res) {
         const { data, error } = await q.limit(200);
         if (error) throw error;
         return res.status(200).json(data || []);
+      }
+
+      if (action === 'proof-url') {
+        if (!(await requirePlatformAdmin(req, res))) return;
+        const paymentId = Number(req.query.payment_id);
+        if (!paymentId) return res.status(400).json({ error: 'payment_id required' });
+        const { data: payment, error: pErr } = await supabase
+          .from('subscription_payments')
+          .select('proof_url')
+          .eq('id', paymentId)
+          .single();
+        if (pErr) throw pErr;
+        if (!payment?.proof_url) return res.status(404).json({ error: 'no proof on this payment' });
+        const { data: signed, error: sErr } = await supabase.storage
+          .from('rafd-payment-proofs')
+          .createSignedUrl(payment.proof_url, 300);
+        if (sErr) throw sErr;
+        return res.status(200).json({ signed_url: signed.signedUrl });
       }
 
       // default: subscription status for tenant

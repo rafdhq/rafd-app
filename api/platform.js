@@ -20,7 +20,7 @@ const ROUTES = {
 };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   const pathParts = req.url.split('?')[0].split('/').filter(Boolean);

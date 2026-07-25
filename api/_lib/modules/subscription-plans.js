@@ -1,5 +1,5 @@
 import { supabase } from '../db-client.js';
-import { requirePlatformAdmin } from '../auth-middleware.js';
+import { requirePlatformAdmin, setCors } from '../auth-middleware.js';
 
 /**
  * Whitelist of columns that actually exist on subscription_plans (see
@@ -45,9 +45,7 @@ function buildPlanPayload(body, { partial = false } = {}) {
 }
 
 export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(req, res, 'GET, POST, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {

@@ -26,15 +26,18 @@ export const handler = withApi(
     const prefix = folder || `tenants/${tenantId || 'shared'}/uploads`;
     const path = `${prefix}/${Date.now()}-${safeName}`;
 
-    const { error } = await supabase.storage.from('rafd-media').upload(path, buffer, {
+    const isPrivate = prefix.startsWith('subscriptions/');
+    const bucket = isPrivate ? 'rafd-payment-proofs' : 'rafd-media';
+
+    const { error } = await supabase.storage.from(bucket).upload(path, buffer, {
       contentType: contentType || 'image/jpeg',
       upsert: true,
     });
     if (error) throw error;
 
-    const { data: urlData } = supabase.storage.from('rafd-media').getPublicUrl(path);
+    const url = isPrivate ? path : supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
     return res.status(200).json({
-      url: urlData.publicUrl,
+      url,
       path,
       bytes: buffer.length,
       content_type: contentType || 'image/jpeg',
