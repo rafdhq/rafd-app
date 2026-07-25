@@ -27,7 +27,7 @@ export default function Backup() {
   const [loading, setLoading] = useState(true);
 
   const loadHistory = useCallback(async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     setError('');
     try {

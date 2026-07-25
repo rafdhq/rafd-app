@@ -1,6 +1,113 @@
 import { supabase } from '../db-client.js';
 import { requirePlatformAdmin, setCors } from '../auth-middleware.js';
 
+/**
+ * Icons a superadmin may choose for a login-page feature. Must stay in sync
+ * with FEATURE_ICONS in src/lib/loginFeatures.ts. Anything outside this list is
+ * coerced to 'sparkles', so the stored value can never be used to inject
+ * arbitrary content into the public login page.
+ */
+const ALLOWED_FEATURE_ICONS = [
+  'wifi-off',
+  'boxes',
+  'printer',
+  'message-circle',
+  'bar-chart',
+  'shield',
+  'smartphone',
+  'users',
+  'sparkles',
+];
+
+const MAX_FEATURES = 6;
+const MAX_TITLE_LEN = 60;
+const MAX_DESC_LEN = 120;
+
+const DEFAULT_LOGIN_FEATURES = [
+  {
+    icon: 'wifi-off',
+    title: 'نقطة بيع تعمل بلا إنترنت',
+    desc: 'أكمل البيع أثناء الانقطاع والمزامنة تتم تلقائيًا',
+  },
+  {
+    icon: 'boxes',
+    title: 'مخزون وموردون وعملاء لحظيًا',
+    desc: 'أرصدة ودفاتر حسابات محدّثة لحظة بلحظة',
+  },
+  {
+    icon: 'printer',
+    title: 'طباعة فواتير حرارية',
+    desc: 'دعم ESC/POS مباشرة عبر USB أو Serial',
+  },
+  {
+    icon: 'message-circle',
+    title: 'كشوفات حساب عبر واتساب',
+    desc: 'تصدير PDF أو صورة ومشاركتها مع العميل',
+  },
+];
+
+function str(v, max) {
+  if (typeof v !== 'string') return '';
+  return v.trim().slice(0, max);
+}
+
+/**
+ * Enforce shape, icon allow-list, length caps and item count server-side —
+ * the admin UI limits are a convenience, this is the actual boundary.
+ * Returns null when the caller did not supply the field, so PUT can leave the
+ * stored value untouched instead of wiping it.
+ */
+function sanitizeLoginFeatures(raw) {
+  if (raw == null) return null;
+
+  let list = raw;
+  if (typeof list === 'string') {
+    try {
+      list = JSON.parse(list);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .filter((f) => f && typeof f === 'object' && !Array.isArray(f))
+    .map((f) => ({
+      icon: ALLOWED_FEATURE_ICONS.includes(f.icon) ? f.icon : 'sparkles',
+      title: str(f.title, MAX_TITLE_LEN),
+      desc: str(f.desc, MAX_DESC_LEN),
+    }))
+    .filter((f) => f.title)
+    .slice(0, MAX_FEATURES);
+}
+
+/** Only allow http(s) links for the developer credit. */
+function sanitizeLink(v) {
+  const s = str(v, 300);
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Guarantee the login page always receives a usable feature list, even on an
+ * environment where the login_features migration has not been applied yet.
+ */
+function withLoginDefaults(row) {
+  if (!row) return row;
+  const features = sanitizeLoginFeatures(row.login_features);
+  return {
+    ...row,
+    login_features: features && features.length ? features : DEFAULT_LOGIN_FEATURES,
+    developer_name: row.developer_name ?? null,
+    developer_link: row.developer_link ?? null,
+  };
+}
+
 const DEFAULTS = {
   app_name: 'RAFD',
   app_name_ar: 'رفد',
@@ -18,7 +125,11 @@ const DEFAULTS = {
   invoice_footer: 'منصة رفد لإدارة متاجر البقالة',
   maintenance_mode: false,
   allow_registration: true,
+  login_features: DEFAULT_LOGIN_FEATURES,
+  developer_name: null,
+  developer_link: null,
 };
+
 
 export const handler = async function handler(req, res) {
   setCors(req, res, 'GET, POST, PUT, OPTIONS');
@@ -39,9 +150,9 @@ export const handler = async function handler(req, res) {
           .select()
           .single();
         if (cErr) throw cErr;
-        return res.status(200).json(created);
+        return res.status(200).json(withLoginDefaults(created));
       }
-      return res.status(200).json(data[0]);
+      return res.status(200).json(withLoginDefaults(data[0]));
     }
 
     if (req.method === 'PUT' || req.method === 'POST') {
@@ -55,6 +166,10 @@ export const handler = async function handler(req, res) {
         .select('id')
         .order('id', { ascending: true })
         .limit(1);
+
+      // The SuperAdmin console saves one tab at a time via a shared handler, so
+      // a payload that omits login_features must not wipe it. null = untouched.
+      const features = sanitizeLoginFeatures(body.login_features);
 
       const payload = {
         app_name: body.app_name ?? DEFAULTS.app_name,
@@ -73,8 +188,11 @@ export const handler = async function handler(req, res) {
         invoice_footer: body.invoice_footer ?? DEFAULTS.invoice_footer,
         maintenance_mode: body.maintenance_mode ?? false,
         allow_registration: body.allow_registration ?? true,
+        developer_name: str(body.developer_name, 80) || null,
+        developer_link: sanitizeLink(body.developer_link),
         updated_at: new Date().toISOString(),
       };
+      if (features !== null) payload.login_features = features;
 
       if (existing?.[0]?.id) {
         const { data, error } = await supabase
@@ -87,7 +205,11 @@ export const handler = async function handler(req, res) {
         return res.status(200).json(data);
       }
 
-      const { data, error } = await supabase.from('platform_settings').insert(payload).select().single();
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .insert({ login_features: DEFAULT_LOGIN_FEATURES, ...payload })
+        .select()
+        .single();
       if (error) throw error;
       return res.status(201).json(data);
     }

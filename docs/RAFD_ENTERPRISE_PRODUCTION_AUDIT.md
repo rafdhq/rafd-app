@@ -1,5 +1,31 @@
 # RAFD Enterprise Production Audit — Investigation Log
 
+> ## ⚠️ حالة هذا المستند: تاريخي (pre-PR #12)
+>
+> **كُتب قبل** دمج PR #12 في `main`. **معظم بنوده الحرجة عولجت فعليًا** منذ ذلك الحين:
+>
+> | ما ورد في هذا التقرير كمشكلة | الحالة الآن |
+> |---|---|
+> | modules تستخدم service-role بلا Auth Gate | ✅ عولج — كل module محمي |
+> | `/api/subscription` غير محمي | ✅ عولج — `resolveAuth`/`requirePlatformAdmin` |
+> | `/api/tenants` مفتوح | ✅ عولج — `tenants.js:126` |
+> | Schema Drift | ✅ عولج — `20260725012031_...schema_align.sql` |
+> | تكرار `tenant_subscriptions` | ✅ عولج — قيد `UNIQUE (tenant_id)` |
+> | نقص FKs وindexes | ✅ عولج — 50 FK + 51 index |
+> | Platform Admin مكسور بأعمدة مفقودة | ✅ عولج مع محاذاة السكيما |
+> | CORS مفتوح | ✅ عولج — allowlist |
+> | إثباتات الدفع في bucket عام | ✅ عولج — bucket خاص + رابط موقَّت |
+> | باغ الـ loading العالق (حالة لا-tenant) | ✅ عولج في 12 صفحة |
+> | Backup/Restore غير متوافق مع السكيما | ⚠️ السكيما عولجت؛ **الاستعادة ما زالت جزئية** |
+> | Offline محدود خارج المبيعات/المنتجات | ❌ ما زال مفتوحًا |
+> | أداء dashboard/reports/bundle | ❌ ما زال مفتوحًا |
+> | `lint` و`audit` يفشلان | ❌ ما زالا يفشلان |
+>
+> **لا تستخدم هذا الملف كمصدر للحالة الحالية.** المصدر المعتمد:
+> [`OPEN_ISSUES_INVESTIGATION_2026-07-25.md`](OPEN_ISSUES_INVESTIGATION_2026-07-25.md)
+>
+> يُحتفظ بهذا المستند لقيمته في توثيق **جذور** المشاكل والقرارات التي بُنيت عليها الإصلاحات.
+
 > Mode: Investigation / Architecture + Software + Database + Production Stability Audit  
 > Rule: This document is the only file intentionally created/updated during investigation. No application code, migrations, configs, commits, pushes, merges, or PRs are changed.  
 > Repository branch: `arena/019f95a6-rafd-app`  

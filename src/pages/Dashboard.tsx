@@ -32,7 +32,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     setError('');
     try {

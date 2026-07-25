@@ -13,6 +13,7 @@ import {
   Settings2,
   Shield,
   Trash2,
+  RotateCcw,
   Users,
 } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
@@ -30,6 +31,15 @@ import { SuccessToast, ErrorState } from '../components/ui/States';
 import type { AppUser, Tenant } from '../lib/types';
 import { cn, formatDate, formatMoney } from '../lib/utils';
 import { useAuth } from '../contexts/AuthContext';
+import {
+  DEFAULT_LOGIN_FEATURES,
+  FEATURE_ICON_KEYS,
+  MAX_DESC_LEN,
+  MAX_FEATURES,
+  MAX_TITLE_LEN,
+  resolveFeatureIcon,
+  type LoginFeature,
+} from '../lib/loginFeatures';
 
 interface PlatformSettings {
   id?: number;
@@ -49,6 +59,9 @@ interface PlatformSettings {
   invoice_footer: string;
   maintenance_mode: boolean;
   allow_registration: boolean;
+  login_features?: LoginFeature[] | null;
+  developer_name?: string | null;
+  developer_link?: string | null;
 }
 
 interface Plan {
@@ -241,6 +254,20 @@ export default function SuperAdmin() {
     const suspended = tenants.filter((t) => t.status === 'suspended' || t.status === 'inactive').length;
     return { active, trial, suspended, total: tenants.length, users: users.length };
   }, [tenants, users]);
+
+  // Login-page feature editor. Stored as a JSONB array on platform_settings and
+  // sent through the existing saveSettings PUT with the rest of the form.
+  const loginFeatures: LoginFeature[] = Array.isArray(settings?.login_features)
+    ? settings.login_features
+    : [];
+
+  const updateFeature = (index: number, patch: Partial<LoginFeature>) => {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      login_features: loginFeatures.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+    });
+  };
 
   const saveSettings = async () => {
     if (!settings) return;
@@ -1019,6 +1046,26 @@ export default function SuperAdmin() {
             <div className="sm:col-span-2">
               <Input label="تذييل المنصة" value={settings.invoice_footer} onChange={(e) => setSettings({ ...settings, invoice_footer: e.target.value })} />
             </div>
+
+            <div className="sm:col-span-2 mt-1 border-t border-app pt-4">
+              <div className="mb-1 text-sm font-semibold text-app">جهة التطوير</div>
+              <p className="mb-3 text-xs text-muted">
+                يظهر سطر «تطوير: …» بحجم مصغّر أسفل صفحة تسجيل الدخول. اتركه فارغًا لإخفائه تمامًا.
+              </p>
+            </div>
+            <Input
+              label="اسم المطوّر"
+              value={settings.developer_name || ''}
+              onChange={(e) => setSettings({ ...settings, developer_name: e.target.value })}
+              placeholder="اختياري"
+            />
+            <Input
+              label="رابط التواصل"
+              value={settings.developer_link || ''}
+              onChange={(e) => setSettings({ ...settings, developer_link: e.target.value })}
+              placeholder="https://example.com"
+            />
+
             <div className="sm:col-span-2">
               <Button loading={busy} onClick={saveSettings}>حفظ معلومات التواصل</Button>
             </div>
@@ -1122,6 +1169,92 @@ export default function SuperAdmin() {
               <div className="sm:col-span-2">
                 <Button loading={busy} onClick={saveSettings}>حفظ الهوية</Button>
               </div>
+            </CardBody>
+          </Card>
+
+          <Card className="mt-4">
+            <CardHeader
+              title="ميزات صفحة تسجيل الدخول"
+              description={`تظهر في اللوحة الجانبية لصفحة الدخول · حتى ${MAX_FEATURES} ميزات`}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSettings({ ...settings, login_features: DEFAULT_LOGIN_FEATURES })}
+                >
+                  <RotateCcw className="h-4 w-4" /> استعادة الافتراضية
+                </Button>
+              }
+            />
+            <CardBody className="space-y-3">
+              {loginFeatures.map((f, idx) => {
+                const Icon = resolveFeatureIcon(f.icon);
+                return (
+                  <div key={idx} className="rounded-2xl border border-app bg-surface p-3">
+                    <div className="grid gap-2 sm:grid-cols-[auto_10rem_1fr_auto] sm:items-end">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-soft">
+                        <Icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <Select
+                        label="الأيقونة"
+                        value={f.icon}
+                        onChange={(e) => updateFeature(idx, { icon: e.target.value })}
+                        options={FEATURE_ICON_KEYS.map((k) => ({ value: k, label: k }))}
+                      />
+                      <Input
+                        label="العنوان"
+                        value={f.title}
+                        maxLength={MAX_TITLE_LEN}
+                        onChange={(e) => updateFeature(idx, { title: e.target.value })}
+                      />
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSettings({
+                          ...settings,
+                          login_features: loginFeatures.filter((_, i) => i !== idx),
+                        })}
+                        aria-label="حذف الميزة"
+                      >
+                        <Trash2 className="h-4 w-4 text-danger" />
+                      </Button>
+                      <div className="sm:col-span-4">
+                        <Input
+                          label="الوصف"
+                          value={f.desc}
+                          maxLength={MAX_DESC_LEN}
+                          onChange={(e) => updateFeature(idx, { desc: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {!loginFeatures.length && (
+                <div className="rounded-2xl border border-dashed border-app py-8 text-center text-sm text-muted">
+                  لا توجد ميزات — أضف واحدة أو استعد الافتراضية
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  disabled={loginFeatures.length >= MAX_FEATURES}
+                  onClick={() => setSettings({
+                    ...settings,
+                    login_features: [
+                      ...loginFeatures,
+                      { icon: 'sparkles', title: '', desc: '' },
+                    ],
+                  })}
+                >
+                  <Plus className="h-4 w-4" /> إضافة ميزة
+                </Button>
+                <Button loading={busy} onClick={saveSettings}>حفظ الميزات</Button>
+              </div>
+              <p className="text-xs text-muted">
+                الميزات بعنوان فارغ تُحذف عند الحفظ. الحد: {MAX_TITLE_LEN} حرفًا للعنوان و{MAX_DESC_LEN} للوصف.
+              </p>
             </CardBody>
           </Card>
         </div>

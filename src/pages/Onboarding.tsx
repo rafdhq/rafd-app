@@ -26,6 +26,24 @@ import supabase from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { checkDeviceTrialBlocked, getDeviceId } from '../lib/device';
 
+function requestOnboardingPermissions() {
+  try {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => undefined);
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    navigator.mediaDevices
+      ?.getUserMedia?.({ video: true })
+      .then((stream) => stream.getTracks().forEach((t) => t.stop()))
+      .catch(() => undefined);
+  } catch {
+    /* ignore */
+  }
+}
+
 const steps = [
   { id: 1, title: 'المتجر', icon: Store },
   { id: 2, title: 'النشاط', icon: Layers },
@@ -360,6 +378,8 @@ export default function Onboarding() {
       const {
         data: { session: finalSession },
       } = await supabase.auth.getSession();
+
+      requestOnboardingPermissions();
 
       if (finalSession) {
         navigate('/dashboard', { replace: true });

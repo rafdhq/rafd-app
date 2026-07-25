@@ -8,6 +8,23 @@ import { useAuth } from '../contexts/AuthContext';
 import supabase from '../lib/supabase';
 import { signInWithGoogle } from '../lib/googleAuth';
 import { useTheme } from '../contexts/ThemeContext';
+import {
+  DEFAULT_LOGIN_FEATURES,
+  parseLoginFeatures,
+  resolveFeatureIcon,
+  type LoginFeature,
+} from '../lib/loginFeatures';
+
+interface PublicStats {
+  tenants: number | null;
+  invoices: number | null;
+  active_users: number | null;
+  min_display_threshold?: number;
+}
+
+function formatCount(n: number) {
+  return new Intl.NumberFormat('ar-EG').format(n);
+}
 
 export default function Login() {
   const { user, profile, loading, refreshProfile } = useAuth();
@@ -23,6 +40,14 @@ export default function Login() {
   const [notice, setNotice] = useState(noticeFromState || '');
   const [busy, setBusy] = useState(false);
 
+  // Right-panel content. Seeded with built-in defaults so the panel renders
+  // instantly and stays populated even if the settings request fails.
+  const [appNameAr, setAppNameAr] = useState('رفد');
+  const [features, setFeatures] = useState<LoginFeature[]>(DEFAULT_LOGIN_FEATURES);
+  const [devName, setDevName] = useState('');
+  const [devLink, setDevLink] = useState('');
+  const [stats, setStats] = useState<PublicStats | null>(null);
+
   useEffect(() => {
     if (emailFromState) setEmail(emailFromState);
     if (noticeFromState) setNotice(noticeFromState);
@@ -37,6 +62,35 @@ export default function Login() {
         .catch(() => undefined);
     }
   }, [emailFromState, noticeFromState]);
+
+  // Login-page content + live counters. Both are best-effort: any failure keeps
+  // the built-in defaults and simply hides the stats block. Never blocks login.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch('/api/platform-settings')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (data.app_name_ar) setAppNameAr(String(data.app_name_ar));
+        const parsed = parseLoginFeatures(data.login_features);
+        if (parsed.length) setFeatures(parsed);
+        if (data.developer_name) setDevName(String(data.developer_name));
+        if (data.developer_link) setDevLink(String(data.developer_link));
+      })
+      .catch(() => undefined);
+
+    fetch('/api/public-stats')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setStats(data as PublicStats);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // A pure platform super-admin (no store) goes to the admin console.
   // A super-admin who also owns a store is Owner + Super Admin → runs the store.
@@ -98,34 +152,86 @@ export default function Login() {
             background:
               'radial-gradient(circle at 20% 20%, rgba(45,212,191,0.35), transparent 40%), radial-gradient(circle at 80% 70%, rgba(251,191,36,0.25), transparent 35%)',
           }} />
-          <div className="relative z-10">
+          {/* 1) Brand */}
+          <div className="relative z-10 flex items-center gap-3">
             <Logo inverted size="lg" />
           </div>
+
           <div className="relative z-10 max-w-lg">
-            <h1 className="text-4xl font-bold leading-tight tracking-tight">
-              منصة إدارة البقالة
+            <h1 className="text-3xl xl:text-4xl font-bold leading-tight tracking-tight">
+              {appNameAr}
               <br />
-              <span className="text-teal-300">الأذكى والأسرع</span>
+              <span className="text-teal-300">منصة إدارة المتاجر ونقاط البيع</span>
             </h1>
-            <p className="mt-4 text-lg text-teal-100/80 leading-relaxed">
-              رفد منصة Offline-First مصممة لليمن والسعودية. نقطة بيع لمسية، مخزون لحظي،
-              ومزامنة سحابية موثوقة — بدون تعقيد محاسبي.
-            </p>
-            <div className="mt-8 grid grid-cols-3 gap-3">
-              {[
-                { t: 'Offline First', d: 'يعمل بدون إنترنت' },
-                { t: 'RTL First', d: 'عربي أصلي' },
-                { t: 'Touch First', d: 'جاهز للمس' },
-              ].map((x) => (
-                <div key={x.t} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-sm font-semibold text-teal-200">{x.t}</div>
-                  <div className="mt-1 text-xs text-teal-100/70">{x.d}</div>
+
+            {/* 2) Real capabilities, managed from the SuperAdmin console */}
+            <ul className="mt-7 space-y-3">
+              {features.map((f, i) => {
+                const Icon = resolveFeatureIcon(f.icon);
+                return (
+                  <li key={`${f.title}-${i}`} className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+                      <Icon className="h-4.5 w-4.5 text-teal-300" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-white">{f.title}</span>
+                      {f.desc && (
+                        <span className="mt-0.5 block text-xs leading-relaxed text-teal-100/70">
+                          {f.desc}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {/* 3) Live platform counters — hidden entirely while the platform is
+                small or when the request failed, rather than showing zeros. */}
+            {stats &&
+              typeof stats.tenants === 'number' &&
+              stats.tenants >= (stats.min_display_threshold ?? 10) && (
+                <div className="mt-8 grid grid-cols-3 gap-3 border-t border-white/10 pt-6">
+                  {[
+                    { value: stats.tenants, label: 'متجر مسجّل' },
+                    { value: stats.invoices, label: 'فاتورة مُصدرة' },
+                    { value: stats.active_users, label: 'مستخدم نشط' },
+                  ]
+                    .filter((s): s is { value: number; label: string } => typeof s.value === 'number')
+                    .map((s) => (
+                      <div key={s.label}>
+                        <div className="text-2xl font-bold tabular text-teal-200">
+                          {formatCount(s.value)}
+                        </div>
+                        <div className="mt-0.5 text-xs text-teal-100/60">{s.label}</div>
+                      </div>
+                    ))}
                 </div>
-              ))}
-            </div>
+              )}
           </div>
-          <div className="relative z-10 text-sm text-teal-200/60">
-            © {new Date().getFullYear()} رفد | RAFD — Trust · Speed · Growth
+
+          <div className="relative z-10">
+            <div className="text-sm text-teal-200/60">
+              © {new Date().getFullYear()} {appNameAr} | RAFD — Trust · Speed · Growth
+            </div>
+            {/* 5) Optional developer credit — only rendered when configured */}
+            {devName && (
+              <div className="mt-1 text-[10px] text-teal-200/40">
+                تطوير:{' '}
+                {devLink ? (
+                  <a
+                    href={devLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2 transition hover:text-teal-200/70"
+                  >
+                    {devName}
+                  </a>
+                ) : (
+                  <span>{devName}</span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
