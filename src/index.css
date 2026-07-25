@@ -40,6 +40,14 @@
   --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.04);
   --shadow-lift: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04);
   --shadow-glow: 0 0 0 3px rgba(13, 148, 136, 0.18);
+
+  /* Tailwind v4 has no built-in `xs`, but `xs:` was already used in TopBar,
+     POS and PhoneWhatsAppField — those utilities compiled to nothing, which
+     silently hid the theme toggle and the "معلقة" label on phones under
+     640px. Defining the breakpoint activates the existing markup; every one
+     of those call sites also carries an `sm:` variant, so behaviour at and
+     above 640px is unchanged. */
+  --breakpoint-xs: 480px;
 }
 
 :root {
@@ -259,6 +267,58 @@ table,
 }
 ::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklab, var(--text-muted) 60%, transparent);
+}
+
+/* Sidebar scroll area.
+   The global thumb above is derived from --text-muted, a page-background
+   token. Rendered over the dark sidebar (#042f2e) that lands at ~1.5:1
+   contrast — effectively invisible, so users got no hint that the nav
+   scrolls at all. With 29 links for an owner the list overflows on every
+   screen size, hiding roughly the bottom third. These rules scope a
+   sidebar-appropriate thumb (derived from --sidebar-text, which is light in
+   both themes — --sidebar-muted is too dim in dark mode to clear 3:1) and
+   adds scrollbar-color, which also fixes
+   Firefox (it ignores ::-webkit-scrollbar and was painting a wide light
+   default bar inside the dark panel). */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--sidebar-text) 45%, transparent) transparent;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklab, var(--sidebar-text) 45%, transparent);
+  border-radius: 999px;
+}
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--sidebar-text) 65%, transparent);
+}
+
+/* Soft fade at the bottom of the nav so there is a visual cue that more
+   links exist below the fold. Purely decorative — masking changes painting
+   only, so those links stay fully scrollable and clickable. Sidebar.tsx
+   removes this class once the list is scrolled to the end, so the last item
+   is never left dimmed. */
+.sidebar-scroll-fade {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent 100%);
+}
+
+/* Respect the OS "reduce motion" preference. No code depends on
+   transitionend/animationend (verified), so collapsing durations is safe. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Focus */

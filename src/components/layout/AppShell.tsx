@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -19,6 +19,22 @@ function ShellInner() {
   const isPos = location.pathname.startsWith('/pos');
   const isMobileShell =
     location.pathname === '/mobile/manager' || location.pathname === '/mobile/staff';
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  // Reset scroll on navigation. <main> is the scroll container (it carries
+  // overflow-y-auto) and lives outside <Outlet>, so it is never remounted and
+  // its scrollTop otherwise carries over — a new page could open halfway down.
+  // Note this deliberately does NOT use window.scrollTo, which would be a
+  // no-op here since the window itself does not scroll.
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    // Feature-checked: jsdom (used by the test environment) does not implement
+    // Element.scrollTo, so calling it unguarded would throw in any future test
+    // that mounts this shell.
+    if (typeof el.scrollTo === 'function') el.scrollTo({ top: 0, left: 0 });
+    else el.scrollTop = 0;
+  }, [location.pathname]);
 
   if (isMobileShell) {
     return (
@@ -36,6 +52,7 @@ function ShellInner() {
         <OfflineBanner visible={connection === 'offline'} />
         <TopBar onMenu={() => setSidebarOpen(true)} />
         <main
+          ref={mainRef}
           className={cn(
             'page-container flex-1 page-enter',
             isPos

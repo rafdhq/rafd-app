@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -105,6 +105,9 @@ export default function Sidebar({
   const side = locale === 'ar' ? 'right-0' : 'left-0';
   const borderSide = locale === 'ar' ? 'border-l' : 'border-r';
   const hiddenTranslate = locale === 'ar' ? 'translate-x-full' : '-translate-x-full';
+  const { pathname } = useLocation();
+  const navRef = useRef<HTMLElement | null>(null);
+  const [faded, setFaded] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -114,6 +117,49 @@ export default function Sidebar({
       document.body.style.overflow = prevOverflow;
     };
   }, [open]);
+
+  // Close the mobile drawer with Escape. Only bound while it is open, so this
+  // can never intercept Escape from dialogs on the page behind it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  // Bring the active link into view. The nav overflows on every screen size
+  // for owner/manager, and the panel is only translated (never unmounted), so
+  // its scrollTop otherwise persists from a previous, unrelated position.
+  // `block: 'nearest'` is deliberate: it does nothing when the link is already
+  // visible, so this never yanks the list while the user is reading it.
+  useEffect(() => {
+    const el = navRef.current?.querySelector('[aria-current="page"]');
+    // Feature-checked: jsdom does not implement scrollIntoView, so an
+    // unguarded call would throw in tests that mount the sidebar.
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest' });
+    }
+  }, [pathname, open]);
+
+  // Hide the bottom fade once the list is scrolled to the end, so the last
+  // item is never dimmed.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const update = () => {
+      const atEnd = el.scrollTop + el.clientHeight >= el.scrollHeight - 4;
+      setFaded(el.scrollHeight > el.clientHeight + 4 && !atEnd);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [role, open]);
 
   return (
     <>
@@ -125,6 +171,7 @@ export default function Sidebar({
         onClick={onClose}
       />
       <aside
+        aria-label={locale === 'ar' ? 'القائمة الرئيسية' : 'Main navigation'}
         className={cn(
           'fixed inset-y-0 z-50 flex w-[min(288px,88vw)] flex-col border-white/5 bg-sidebar text-sidebar transition-transform duration-200 ease-out lg:static lg:w-72 lg:translate-x-0 lg:shrink-0',
           side,
@@ -158,7 +205,13 @@ export default function Sidebar({
           </div>
         )}
 
-        <nav className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6">
+        <nav
+          ref={navRef}
+          className={cn(
+            'sidebar-scroll flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6',
+            faded && 'sidebar-scroll-fade'
+          )}
+        >
           {navGroups.map((group) => {
             const items = group.items.filter((i) => i.roles.includes(role as never));
             if (!items.length) return null;
@@ -175,6 +228,10 @@ export default function Sidebar({
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        // /mobile also matches /mobile/manager and
+                        // /mobile/staff, which kept the parent highlighted on
+                        // child routes. `end` restricts it to an exact match.
+                        end={item.to === '/mobile'}
                         onClick={onClose}
                         className={({ isActive }) =>
                           cn(
