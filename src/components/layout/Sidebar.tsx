@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -105,6 +106,15 @@ export default function Sidebar({
   const borderSide = locale === 'ar' ? 'border-l' : 'border-r';
   const hiddenTranslate = locale === 'ar' ? 'translate-x-full' : '-translate-x-full';
 
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   return (
     <>
       <div
@@ -148,7 +158,7 @@ export default function Sidebar({
           </div>
         )}
 
-        <nav className="flex-1 space-y-5 overflow-y-auto px-3 pb-6">
+        <nav className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-3 pb-6">
           {navGroups.map((group) => {
             const items = group.items.filter((i) => i.roles.includes(role as never));
             if (!items.length) return null;
