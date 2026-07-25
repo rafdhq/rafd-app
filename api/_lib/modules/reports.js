@@ -2,6 +2,81 @@ import { supabase } from '../db-client.js';
 import { withApi } from '../handler.js';
 import { methodNotAllowed } from '../auth-middleware.js';
 
+/** Inclusive end-of-day ISO bound matching inRange()'s `to` semantics. */
+function endOfDayIso(to) {
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
+  return end.toISOString();
+}
+
+/**
+ * Push the requested range into SQL. inRange() still runs afterwards and stays
+ * the source of truth, so results are identical — this only avoids shipping the
+ * tenant's entire history over the wire.
+ *
+ * Used for sales.created_at, which inRange() reads directly: a NULL there makes
+ * inRange() return false, and a NULL also fails gte/lte, so both agree.
+ */
+function applyRange(query, column, from, to) {
+  let q = query;
+  if (from) q = q.gte(column, new Date(from).toISOString());
+  if (to) q = q.lte(column, endOfDayIso(to));
+  return q;
+}
+
+/**
+ * Range filter that keeps NULLs, for columns the caller reads with a fallback
+ * (`expense_date || created_at`, `purchase_date || created_at`). Dropping NULL
+ * rows in SQL would discard rows the JS would have matched via created_at, so
+ * they are retained here and inRange() decides.
+ */
+function applyRangeKeepNull(query, column, from, to, format) {
+  const enc = (v, isEnd) =>
+    format === 'date'
+      ? String(v).slice(0, 10)
+      : isEnd
+        ? endOfDayIso(v)
+        : new Date(v).toISOString();
+
+  if (from && to) {
+    return query.or(
+      `${column}.is.null,and(${column}.gte.${enc(from, false)},${column}.lte.${enc(to, true)})`
+    );
+  }
+  if (from) return query.or(`${column}.is.null,${column}.gte.${enc(from, false)}`);
+  if (to) return query.or(`${column}.is.null,${column}.lte.${enc(to, true)}`);
+  return query;
+}
+
+// sale_items has no tenant_id, so it is scoped through its parent sale. Chunked
+// to stay under the request-URL limit and paged so a PostgREST row cap cannot
+// silently truncate COGS.
+const SALE_ID_CHUNK = 100;
+const PAGE_SIZE = 1000;
+
+async function fetchSaleItemsForSales(saleIds, columns) {
+  if (!saleIds.length) return [];
+  const out = [];
+  for (let i = 0; i < saleIds.length; i += SALE_ID_CHUNK) {
+    const chunk = saleIds.slice(i, i + SALE_ID_CHUNK);
+    let offset = 0;
+    for (;;) {
+      const { data, error } = await supabase
+        .from('sale_items')
+        .select(columns)
+        .in('sale_id', chunk)
+        .order('id', { ascending: true })
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) throw error;
+      const rows = data || [];
+      out.push(...rows);
+      if (rows.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
+  }
+  return out;
+}
+
 function inRange(dateStr, from, to) {
   if (!dateStr) return false;
   const t = new Date(dateStr).getTime();
@@ -24,13 +99,35 @@ export const handler = withApi(
     const tid = tenantId;
 
     if (type === 'pnl') {
-      const [{ data: sales }, { data: expenses }, { data: products }, { data: items }, { data: purchases }] =
+      const [{ data: sales }, { data: expenses }, { data: products }, { data: purchases }] =
         await Promise.all([
-          supabase.from('sales').select('*').eq('tenant_id', tid),
-          supabase.from('expenses').select('*').eq('tenant_id', tid),
+          applyRange(
+            supabase
+              .from('sales')
+              .select('id, total, discount, tax, status, created_at')
+              .eq('tenant_id', tid),
+            'created_at',
+            from,
+            to
+          ),
+          applyRangeKeepNull(
+            supabase
+              .from('expenses')
+              .select('amount, category, expense_date, created_at')
+              .eq('tenant_id', tid),
+            'expense_date',
+            from,
+            to,
+            'date'
+          ),
           supabase.from('products').select('id, cost, price, name_ar, name').eq('tenant_id', tid),
-          supabase.from('sale_items').select('*'),
-          supabase.from('purchases').select('*').eq('tenant_id', tid),
+          applyRangeKeepNull(
+            supabase.from('purchases').select('total, purchase_date, created_at').eq('tenant_id', tid),
+            'purchase_date',
+            from,
+            to,
+            'timestamp'
+          ),
         ]);
 
       const completed = (sales || []).filter(
@@ -47,14 +144,15 @@ export const handler = withApi(
       const purchaseTotal = purFiltered.reduce((a, p) => a + Number(p.total || 0), 0);
 
       const productMap = Object.fromEntries((products || []).map((p) => [p.id, p]));
-      const saleIds = new Set(salesFiltered.map((s) => s.id));
-      const cogs = (items || [])
-        .filter((i) => saleIds.has(i.sale_id))
-        .reduce((a, it) => {
-          const p = productMap[it.product_id];
-          const cost = p ? Number(p.cost || 0) : Number(it.unit_price || 0) * 0.7;
-          return a + cost * Number(it.quantity || 0);
-        }, 0);
+      const items = await fetchSaleItemsForSales(
+        salesFiltered.map((s) => s.id),
+        'sale_id, product_id, quantity, unit_price'
+      );
+      const cogs = items.reduce((a, it) => {
+        const p = productMap[it.product_id];
+        const cost = p ? Number(p.cost || 0) : Number(it.unit_price || 0) * 0.7;
+        return a + cost * Number(it.quantity || 0);
+      }, 0);
 
       const grossProfit = revenue - cogs;
       const netProfit = grossProfit - expenseTotal;
