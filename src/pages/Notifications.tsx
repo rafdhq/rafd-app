@@ -26,7 +26,7 @@ export default function Notifications() {
   const canBroadcast = profile?.role === 'owner' || profile?.role === 'manager' || profile?.role === 'superadmin';
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const res = await fetch(`/api/notifications?tenant_id=${tenant.id}`);
     if (res.ok) setItems(await res.json());

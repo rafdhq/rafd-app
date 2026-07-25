@@ -315,7 +315,7 @@ export default function CustomerStatementDoc({
               </div>
             </div>
             <div style={{ fontSize: 11, color: '#64748b', textAlign: 'center' }}>
-              هذا ملخص صفحة واحدةحدة للمشاركة عبر واتساب.
+              هذا ملخص صفحة واحدة للمشاركة عبر واتساب.
               <br />
               التفاصيل الكاملة (المنتجات + الحركات) متوفرة في ملف PDF.
             </div>

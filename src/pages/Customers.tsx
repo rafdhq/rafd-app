@@ -145,27 +145,33 @@ export default function Customers() {
   const collectPayment = async () => {
     if (!selected || !payAmount) return;
     setBusy(true);
-    await fetch('/api/customer-ledger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenant_id: tenant?.id,
-        customer_id: selected.id,
-        type: 'payment',
-        amount: payAmount,
-        notes: payNotes || 'تحصيل من العميل',
-        reference: `PAY-${Date.now().toString().slice(-6)}`,
-      }),
-    });
-    setBusy(false);
-    setPayOpen(false);
-    setPayAmount(0);
-    setPayNotes('');
-    await load();
-    const updated = (await (await fetch(`/api/customers?tenant_id=${tenant?.id}`)).json()).find(
-      (x: Customer) => x.id === selected.id
-    );
-    if (updated) openAccount(updated);
+    try {
+      const res = await fetch('/api/customer-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenant?.id,
+          customer_id: selected.id,
+          type: 'payment',
+          amount: payAmount,
+          notes: payNotes || 'تحصيل من العميل',
+          reference: `PAY-${Date.now().toString().slice(-6)}`,
+        }),
+      });
+      if (!res.ok) throw new Error('تعذر تسجيل التحصيل');
+      setPayOpen(false);
+      setPayAmount(0);
+      setPayNotes('');
+      await load();
+      const updated = (await (await fetch(`/api/customers?tenant_id=${tenant?.id}`)).json()).find(
+        (x: Customer) => x.id === selected.id
+      );
+      if (updated) openAccount(updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'تعذر تسجيل التحصيل');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const statementText = () => {
@@ -253,7 +259,7 @@ export default function Customers() {
     <div>
       <PageHeader
         title="العملاء وحساباتهم"
-        description="كشف حساب تفصيلي بالمنتجات · فترة محددة · رصيد سابق · واتساب ملخص صفحة واحدةحدة · PDF متعدد الصفحات"
+        description="كشف حساب تفصيلي بالمنتجات · فترة محددة · رصيد سابق · واتساب ملخص صفحة واحدة · PDF متعدد الصفحات"
         actions={
           <Button onClick={() => setOpen(true)}>
             <Plus className="h-4 w-4" /> عميل جديد
@@ -359,7 +365,7 @@ export default function Customers() {
         open={accountOpen}
         onClose={() => setAccountOpen(false)}
         title={`كشف حساب — ${selected?.name || ''}`}
-        description="PDF تفصيلي بالمنتجات · واتساب: ملخص صفحة واحدةحدة فقط · طباعة متعددة الصفحات"
+        description="PDF تفصيلي بالمنتجات · واتساب: ملخص صفحة واحدة فقط · طباعة متعددة الصفحات"
         size="xl"
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -378,7 +384,7 @@ export default function Customers() {
               </Button>
               <Button variant="soft" loading={exporting === 'wa'} onClick={shareWhatsApp}>
                 <MessageCircle className="h-4 w-4" />
-                واتساب (ملخص صفحة واحدةحدة)
+                واتساب (ملخص صفحة واحدة)
               </Button>
               <Button variant="ghost" onClick={() => openWhatsAppWithText(selected?.phone, statementText())}>
                 نص فقط
@@ -473,7 +479,7 @@ export default function Customers() {
               {/* Hidden/visible one-page summary for WhatsApp */}
               <div className="overflow-x-auto rounded-2xl border border-dashed border-primary/30 bg-primary-soft/20 p-3">
                 <div className="mb-2 text-xs font-medium text-primary">
-                  ملخص صفحة واحدةحدة — يُشارك عبر واتساب كصورة فقط
+                  ملخص صفحة واحدة — يُشارك عبر واتساب كصورة فقط
                 </div>
                 <CustomerStatementDoc
                   docId={SUMMARY_DOC_ID}

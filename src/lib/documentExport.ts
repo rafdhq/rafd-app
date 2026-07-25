@@ -142,7 +142,7 @@ export async function shareWhatsAppSummaryImage(opts: {
   await downloadElementAsPng(opts.summaryElement, opts.baseName);
   openWhatsAppWithText(
     opts.phone,
-    `${opts.text}\n\n📎 تم تنزيل صورة ملخص كشف الحساب (صفحة واحدةحدة) — أرفقها من المعرض.`
+    `${opts.text}\n\n📎 تم تنزيل صورة ملخص كشف الحساب (صفحة واحدة) — أرفقها من المعرض.`
   );
 }
 

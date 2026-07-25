@@ -49,7 +49,7 @@ export default function UsersPage() {
   });
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [uRes, iRes] = await Promise.all([
       fetch(`/api/users?tenant_id=${tenant.id}`),

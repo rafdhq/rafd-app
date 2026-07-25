@@ -112,27 +112,33 @@ export default function Suppliers() {
   const collectPayment = async () => {
     if (!selected || !payAmount) return;
     setBusy(true);
-    await fetch('/api/supplier-ledger', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenant_id: tenant?.id,
-        supplier_id: selected.id,
-        type: 'payment',
-        amount: payAmount,
-        notes: payNotes || 'سداد للمورد',
-        reference: `SPAY-${Date.now().toString().slice(-6)}`,
-      }),
-    });
-    setBusy(false);
-    setPayOpen(false);
-    setPayAmount(0);
-    setPayNotes('');
-    await load();
-    const updated = (await (await fetch(`/api/suppliers?tenant_id=${tenant?.id}`)).json()).find(
-      (x: Supplier) => x.id === selected.id
-    );
-    if (updated) openAccount(updated);
+    try {
+      const res = await fetch('/api/supplier-ledger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: tenant?.id,
+          supplier_id: selected.id,
+          type: 'payment',
+          amount: payAmount,
+          notes: payNotes || 'سداد للمورد',
+          reference: `SPAY-${Date.now().toString().slice(-6)}`,
+        }),
+      });
+      if (!res.ok) throw new Error('تعذر تسجيل السداد');
+      setPayOpen(false);
+      setPayAmount(0);
+      setPayNotes('');
+      await load();
+      const updated = (await (await fetch(`/api/suppliers?tenant_id=${tenant?.id}`)).json()).find(
+        (x: Supplier) => x.id === selected.id
+      );
+      if (updated) openAccount(updated);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'تعذر تسجيل السداد');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const shareStatementWhatsApp = () => {
