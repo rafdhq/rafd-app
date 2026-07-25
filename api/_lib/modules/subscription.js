@@ -1,4 +1,10 @@
 import { supabase } from '../db-client.js';
+import { resolveAuth, requirePlatformAdmin, setCors } from '../auth-middleware.js';
+
+const ONBOARDING_MAX_PER_HOUR = 10;
+function clientIp(req) { const xff = req.headers['x-forwarded-for'] || req.headers['X-Forwarded-For'] || ''; return String(xff).split(',')[0].trim() || req.socket?.remoteAddress || 'unknown'; }
+async function onboardingRateLimited(req) { try { const ip = clientIp(req); const since = new Date(Date.now() - 60 * 60 * 1000).toISOString(); const { count, error } = await supabase.from('onboarding_ip_log').select('id', { count: 'exact', head: true }).eq('ip', ip).gte('created_at', since); if (error) return false; if ((count || 0) >= ONBOARDING_MAX_PER_HOUR) return true; await supabase.from('onboarding_ip_log').insert({ ip }); return false; } catch { return false; } }
+async function requireTenantAuth(req, res, requestedTenantId) { const auth = await resolveAuth(req); if (!auth.ok) { res.status(auth.status).json({ error: auth.error }); return null; } const requested = Number(requestedTenantId); if (auth.role !== 'superadmin' && (!Number.isFinite(requested) || requested !== Number(auth.profile?.tenant_id))) { res.status(403).json({ error: 'Forbidden: tenant isolation violation' }); return null; } return auth; }
 
 function addDays(date, days) {
   const d = new Date(date);
@@ -151,9 +157,7 @@ async function refreshExpired(sub) {
 }
 
 export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  setCors(req, res, 'GET, POST, PUT, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {
@@ -162,6 +166,7 @@ export const handler = async function handler(req, res) {
       const { action, tenant_id, device_id, email, status } = req.query;
 
       if (action === 'check-device') {
+        if (await onboardingRateLimited(req)) return res.status(429).json({ error: 'Too many onboarding attempts. Please try again later.' });
         if (!device_id) return res.status(400).json({ error: 'device_id required' });
         const { data, error } = await supabase
           .from('device_bindings')
@@ -181,6 +186,8 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'payments') {
+        if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
+        if (!await requireTenantAuth(req, res, tenant_id)) return;
         let q = supabase
           .from('subscription_payments')
           .select('*')
@@ -193,6 +200,8 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'devices') {
+        if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
+        if (!await requireTenantAuth(req, res, tenant_id)) return;
         let q = supabase.from('device_bindings').select('*').order('created_at', { ascending: false });
         if (tenant_id) q = q.eq('tenant_id', tenant_id);
         if (device_id) q = q.eq('device_id', device_id);
@@ -202,8 +211,27 @@ export const handler = async function handler(req, res) {
         return res.status(200).json(data || []);
       }
 
+      if (action === 'proof-url') {
+        if (!(await requirePlatformAdmin(req, res))) return;
+        const paymentId = Number(req.query.payment_id);
+        if (!paymentId) return res.status(400).json({ error: 'payment_id required' });
+        const { data: payment, error: pErr } = await supabase
+          .from('subscription_payments')
+          .select('proof_url')
+          .eq('id', paymentId)
+          .single();
+        if (pErr) throw pErr;
+        if (!payment?.proof_url) return res.status(404).json({ error: 'no proof on this payment' });
+        const { data: signed, error: sErr } = await supabase.storage
+          .from('rafd-payment-proofs')
+          .createSignedUrl(payment.proof_url, 300);
+        if (sErr) throw sErr;
+        return res.status(200).json({ signed_url: signed.signedUrl });
+      }
+
       // default: subscription status for tenant
       if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
+      if (!await requireTenantAuth(req, res, tenant_id)) return;
       let sub = await ensureSubscription(Number(tenant_id));
       sub = await refreshExpired(sub);
       const access = normalizeAccess(sub);
@@ -239,6 +267,7 @@ export const handler = async function handler(req, res) {
       const action = body.action || 'init-trial';
 
       if (action === 'init-trial') {
+        if (await onboardingRateLimited(req)) return res.status(429).json({ error: 'Too many onboarding attempts. Please try again later.' });
         if (!body.tenant_id) return res.status(400).json({ error: 'tenant_id required' });
         const sub = await ensureSubscription(Number(body.tenant_id), body.plan_code || 'growth');
 
@@ -287,6 +316,7 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'check-device') {
+        if (await onboardingRateLimited(req)) return res.status(429).json({ error: 'Too many onboarding attempts. Please try again later.' });
         if (!body.device_id) return res.status(400).json({ error: 'device_id required' });
         const { data } = await supabase
           .from('device_bindings')
@@ -307,6 +337,7 @@ export const handler = async function handler(req, res) {
         const planCode = body.plan_code;
         const cycle = body.billing_cycle === 'yearly' ? 'yearly' : 'monthly';
         if (!tenantId || !planCode) return res.status(400).json({ error: 'tenant_id and plan_code required' });
+        if (!await requireTenantAuth(req, res, tenantId)) return;
 
         const plan = await getPlan(planCode);
         if (!plan) return res.status(404).json({ error: 'الباقة غير موجودة' });
@@ -344,6 +375,7 @@ export const handler = async function handler(req, res) {
       if (action === 'submit-payment') {
         const tenantId = Number(body.tenant_id);
         if (!tenantId) return res.status(400).json({ error: 'tenant_id required' });
+        if (!await requireTenantAuth(req, res, tenantId)) return;
         if (!body.proof_url) return res.status(400).json({ error: 'يرجى رفع إثبات التحويل' });
 
         let sub = await ensureSubscription(tenantId, body.plan_code);
@@ -410,6 +442,7 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'review-payment') {
+        if (!await requirePlatformAdmin(req, res)) return;
         const paymentId = Number(body.payment_id);
         const decision = body.decision; // approved | rejected
         if (!paymentId || !['approved', 'rejected'].includes(decision)) {
@@ -500,6 +533,7 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'admin-activate') {
+        if (!await requirePlatformAdmin(req, res)) return;
         // manual activation without payment proof
         const tenantId = Number(body.tenant_id);
         const planCode = body.plan_code || 'growth';
@@ -529,6 +563,7 @@ export const handler = async function handler(req, res) {
       }
 
       if (action === 'release-device') {
+        if (!await requirePlatformAdmin(req, res)) return;
         const id = Number(body.id);
         if (!id) return res.status(400).json({ error: 'id required' });
         const { data, error } = await supabase

@@ -36,7 +36,7 @@ export default function Stocktake() {
   const [counts, setCounts] = useState<Record<number, string>>({});
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const res = await fetch(`/api/stocktakes?tenant_id=${tenant.id}`);
     if (res.ok) setSessions(await res.json());

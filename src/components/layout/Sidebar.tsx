@@ -100,7 +100,7 @@ export default function Sidebar({
   const { profile } = useAuth();
   const { tenant } = useTenant();
   const { locale } = useI18n();
-  const role = profile?.role || 'owner';
+  const role = profile?.role === 'superadmin' ? 'owner' : profile?.role || 'owner';
   const side = locale === 'ar' ? 'right-0' : 'left-0';
   const borderSide = locale === 'ar' ? 'border-l' : 'border-r';
   const hiddenTranslate = locale === 'ar' ? 'translate-x-full' : '-translate-x-full';

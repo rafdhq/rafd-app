@@ -6,7 +6,7 @@ import { handler as refundsHandler } from './_lib/modules/refunds.js';
 const ROUTES = { sales: salesHandler, purchases: purchasesHandler, refunds: refundsHandler };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   const resource = req.query?.resource || req.url.split('?')[0].split('/').filter(Boolean)[2];
   const routeHandler = ROUTES[resource];

@@ -1,16 +1,13 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { auth, tenantId }) {
   try {
     if (req.method === 'GET') {
-      const { tenant_id } = req.query;
+
       let q = supabase.from('expenses').select('*').order('expense_date', { ascending: false });
-      if (tenant_id) q = q.eq('tenant_id', tenant_id);
+      if (tenantId) q = q.eq('tenant_id', tenantId);
       const { data, error } = await q;
       if (error) throw error;
       return res.status(200).json(data);
@@ -21,7 +18,7 @@ export const handler = async function handler(req, res) {
       const { data, error } = await supabase
         .from('expenses')
         .insert({
-          tenant_id: body.tenant_id,
+          tenant_id: tenantId,
           category: body.category,
           amount: body.amount,
           description: body.description || null,
@@ -37,7 +34,7 @@ export const handler = async function handler(req, res) {
     if (req.method === 'PUT') {
       const { id, ...rest } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
-      const { data, error } = await supabase.from('expenses').update(rest).eq('id', id).select().single();
+      const { data, error } = await supabase.from('expenses').update(rest).eq('id', id).eq('tenant_id', tenantId).select().single();
       if (error) throw error;
       return res.status(200).json(data);
     }
@@ -45,7 +42,7 @@ export const handler = async function handler(req, res) {
     if (req.method === 'DELETE') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
-      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      const { error } = await supabase.from('expenses').delete().eq('id', id).eq('tenant_id', tenantId);
       if (error) throw error;
       return res.status(200).json({ ok: true });
     }
@@ -55,4 +52,6 @@ export const handler = async function handler(req, res) {
     console.error('expenses API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'expenses:read', POST: 'expenses:write', PUT: 'expenses:write', DELETE: 'expenses:write' } }
+);

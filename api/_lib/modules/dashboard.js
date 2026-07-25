@@ -1,4 +1,5 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 function startOfDay(d = new Date()) {
   const x = new Date(d);
@@ -10,16 +11,12 @@ function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { tenantId }) {
   try {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
-    const tenant_id = req.query.tenant_id || 1;
+    const tenant_id = tenantId;
 
     const [{ data: sales }, { data: expenses }, { data: products }, { data: customers }, { data: items }] =
       await Promise.all([
@@ -118,4 +115,6 @@ export const handler = async function handler(req, res) {
     console.error('dashboard API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'dashboard:read' } }
+);

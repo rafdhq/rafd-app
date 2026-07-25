@@ -41,7 +41,7 @@ export default function Reports() {
   const [exporting, setExporting] = useState('');
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [dRes, pRes] = await Promise.all([
       fetch(`/api/dashboard?tenant_id=${tenant.id}`),

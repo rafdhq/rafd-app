@@ -43,7 +43,7 @@ export default function Shifts() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [listRes, openRes] = await Promise.all([
       fetch(`/api/shifts?tenant_id=${tenant.id}`),

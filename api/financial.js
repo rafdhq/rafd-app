@@ -8,7 +8,7 @@ import { handler as supplierLedgerHandler } from './_lib/modules/supplier-ledger
 const ROUTES = { expenses: expensesHandler, 'bank-accounts': bankAccountsHandler, 'payment-terminals': paymentTerminalsHandler, 'customer-ledger': customerLedgerHandler, 'supplier-ledger': supplierLedgerHandler };
 
 export default async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
   const resource = req.query?.resource || req.url.split('?')[0].split('/').filter(Boolean)[2];
   const routeHandler = ROUTES[resource];

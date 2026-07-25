@@ -11,13 +11,23 @@ export { hasPermission, ROLE_PERMISSIONS };
  * - Enforces tenant isolation + role permissions
  */
 
-export function setCors(res, methods = 'GET, POST, PUT, DELETE, OPTIONS') {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGIN_PATTERNS = [
+  /^https:\/\/rafd-app\.vercel\.app$/,
+  /^https:\/\/rafd-app-malek9art-5513s-projects\.vercel\.app$/,
+  /^https:\/\/rafd-[a-z0-9-]+-malek9art-5513s-projects\.vercel\.app$/,
+  /^http:\/\/localhost(:\d+)?$/,
+];
+
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGIN_PATTERNS.some((re) => re.test(origin));
+}
+
+export function setCors(req, res, methods = 'GET, POST, PUT, DELETE, OPTIONS') {
+  const origin = req?.headers?.origin;
+  if (isAllowedOrigin(origin)) res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', methods);
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Content-Type, Authorization, X-Tenant-Id, X-Client-Offline, X-Idempotency-Key'
-  );
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Tenant-Id, X-Client-Offline, X-Idempotency-Key');
 }
 
 export function getBearerToken(req) {

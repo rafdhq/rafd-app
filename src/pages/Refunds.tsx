@@ -25,7 +25,7 @@ export default function Refunds() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [sRes, rRes] = await Promise.all([
       fetch(`/api/sales?tenant_id=${tenant.id}`),

@@ -2,7 +2,7 @@ import { supabase } from '../db-client.js';
 import { setCors, requireAuth, resolveTenantId, hasPermission } from '../auth-middleware.js';
 
 export const handler = async function handler(req, res) {
-  setCors(res);
+  setCors(req, res);
   if (req.method === 'OPTIONS') return res.status(204).end();
 
   try {

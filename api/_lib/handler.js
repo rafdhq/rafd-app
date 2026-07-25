@@ -9,7 +9,7 @@ import { setCors, requireAuth, resolveTenantId, methodNotAllowed } from './auth-
  */
 export function withApi(handler, { permissions = {}, publicMethods = [] } = {}) {
   return async function wrapped(req, res) {
-    setCors(res);
+    setCors(req, res);
     if (req.method === 'OPTIONS') return res.status(204).end();
 
     try {
