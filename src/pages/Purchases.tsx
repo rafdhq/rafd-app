@@ -67,7 +67,7 @@ export default function Purchases() {
   const [lines, setLines] = useState<DraftLine[]>([]);
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [pRes, sRes, prRes] = await Promise.all([
       fetch(`/api/purchases?tenant_id=${tenant.id}`),

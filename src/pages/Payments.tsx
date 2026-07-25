@@ -41,7 +41,7 @@ export default function Payments() {
   });
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const [sRes, bRes, tRes] = await Promise.all([
       fetch(`/api/sales?tenant_id=${tenant.id}`),

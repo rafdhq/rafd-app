@@ -52,7 +52,7 @@ export default function Suppliers() {
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const res = await fetch(`/api/suppliers?tenant_id=${tenant.id}`);
     if (res.ok) setItems(await res.json());

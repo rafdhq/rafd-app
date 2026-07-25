@@ -20,7 +20,7 @@ export default function Branches() {
   const [form, setForm] = useState({ name: '', name_ar: '', address: '', phone: '' });
 
   const load = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) { setLoading(false); return; }
     setLoading(true);
     const res = await fetch(`/api/branches?tenant_id=${tenant.id}`);
     if (res.ok) setItems(await res.json());

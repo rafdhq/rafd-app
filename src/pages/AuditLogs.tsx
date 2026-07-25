@@ -26,7 +26,7 @@ export default function AuditLogs() {
 
   useEffect(() => {
     const load = async () => {
-      if (!tenant?.id) return;
+      if (!tenant?.id) { setLoading(false); return; }
       setLoading(true);
       const res = await fetch(`/api/audit-logs?tenant_id=${tenant.id}&limit=200`);
       if (res.ok) setItems(await res.json());
