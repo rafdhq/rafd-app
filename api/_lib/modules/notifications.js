@@ -1,16 +1,13 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { auth, tenantId }) {
   try {
     if (req.method === 'GET') {
-      const { tenant_id } = req.query;
+
       let q = supabase.from('notifications').select('*').order('created_at', { ascending: false });
-      if (tenant_id) q = q.eq('tenant_id', tenant_id);
+      if (tenantId) q = q.eq('tenant_id', tenantId);
       const { data, error } = await q.limit(50);
       if (error) throw error;
       return res.status(200).json(data);
@@ -21,7 +18,7 @@ export const handler = async function handler(req, res) {
       const { data, error } = await supabase
         .from('notifications')
         .insert({
-          tenant_id: body.tenant_id || null,
+          tenant_id: tenantId || null,
           title: body.title,
           body: body.body,
           type: body.type || 'info',
@@ -34,18 +31,18 @@ export const handler = async function handler(req, res) {
     }
 
     if (req.method === 'PUT') {
-      const { id, mark_all, tenant_id, ...rest } = req.body || {};
-      if (mark_all && tenant_id) {
+      const { id, mark_all, ...rest } = req.body || {};
+      if (mark_all && tenantId) {
         const { data, error } = await supabase
           .from('notifications')
           .update({ is_read: true })
-          .eq('tenant_id', tenant_id)
+          .eq('tenant_id', tenantId)
           .select();
         if (error) throw error;
         return res.status(200).json(data);
       }
       if (!id) return res.status(400).json({ error: 'id required' });
-      const { data, error } = await supabase.from('notifications').update(rest).eq('id', id).select().single();
+      const { data, error } = await supabase.from('notifications').update(rest).eq('id', id).eq('tenant_id', tenantId).select().single();
       if (error) throw error;
       return res.status(200).json(data);
     }
@@ -53,7 +50,7 @@ export const handler = async function handler(req, res) {
     if (req.method === 'DELETE') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
-      const { error } = await supabase.from('notifications').delete().eq('id', id);
+      const { error } = await supabase.from('notifications').delete().eq('id', id).eq('tenant_id', tenantId);
       if (error) throw error;
       return res.status(200).json({ ok: true });
     }
@@ -63,4 +60,6 @@ export const handler = async function handler(req, res) {
     console.error('notifications API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'notifications:read', POST: 'notifications:write', PUT: 'notifications:write', DELETE: 'notifications:write' } }
+);

@@ -1,16 +1,13 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { auth, tenantId }) {
   try {
     if (req.method === 'GET') {
-      const { tenant_id, supplier_id } = req.query;
+      const { supplier_id } = req.query;
       let q = supabase.from('supplier_ledger').select('*').order('created_at', { ascending: false });
-      if (tenant_id) q = q.eq('tenant_id', tenant_id);
+      if (tenantId) q = q.eq('tenant_id', tenantId);
       if (supplier_id) q = q.eq('supplier_id', supplier_id);
       const { data, error } = await q;
       if (error) throw error;
@@ -34,6 +31,10 @@ export const handler = async function handler(req, res) {
         .single();
       if (sErr) throw sErr;
 
+      if (auth.role !== 'superadmin' && Number(supplier.tenant_id) !== Number(tenantId)) {
+        return res.status(403).json({ error: 'Forbidden: tenant isolation violation' });
+      }
+
       let balance = Number(supplier.balance || 0);
       // purchase_credit increases what we owe; payment decreases it
       if (type === 'purchase_credit' || type === 'debit') balance += amount;
@@ -49,7 +50,7 @@ export const handler = async function handler(req, res) {
       const { data, error } = await supabase
         .from('supplier_ledger')
         .insert({
-          tenant_id: body.tenant_id || supplier.tenant_id,
+          tenant_id: tenantId,
           supplier_id: supplierId,
           type,
           amount,
@@ -69,4 +70,6 @@ export const handler = async function handler(req, res) {
     console.error('supplier-ledger API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'suppliers:read', POST: 'suppliers:write' } }
+);

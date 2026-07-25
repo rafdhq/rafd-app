@@ -1,4 +1,5 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
 function parseArr(v) {
   if (Array.isArray(v)) return v;
@@ -13,20 +14,16 @@ function parseArr(v) {
   return [];
 }
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { tenantId }) {
   try {
     if (req.method === 'GET') {
-      const { tenant_id } = req.query;
+      const tenant_id = tenantId;
       if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
       const { data, error } = await supabase
         .from('tenant_catalog')
         .select('*')
-        .eq('tenant_id', tenant_id)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
       if (error) throw error;
       if (!data) {
@@ -46,7 +43,7 @@ export const handler = async function handler(req, res) {
 
     if (req.method === 'POST' || req.method === 'PUT') {
       const body = req.body || {};
-      const tenant_id = body.tenant_id;
+      const tenant_id = tenantId;
       if (!tenant_id) return res.status(400).json({ error: 'tenant_id required' });
 
       const payload = {
@@ -60,7 +57,7 @@ export const handler = async function handler(req, res) {
       const { data: existing } = await supabase
         .from('tenant_catalog')
         .select('id')
-        .eq('tenant_id', tenant_id)
+        .eq('tenant_id', tenantId)
         .maybeSingle();
 
       let row;
@@ -91,4 +88,6 @@ export const handler = async function handler(req, res) {
     console.error('tenant-catalog API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'products:read', POST: 'products:write', PUT: 'products:write', DELETE: 'products:write' } }
+);

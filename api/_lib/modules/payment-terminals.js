@@ -1,16 +1,13 @@
 import { supabase } from '../db-client.js';
+import { withApi } from '../handler.js';
 
-export const handler = async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.status(204).end();
-
+export const handler = withApi(
+  async function handler(req, res, { auth, tenantId }) {
   try {
     if (req.method === 'GET') {
-      const { tenant_id } = req.query;
+
       let q = supabase.from('payment_terminals').select('*').order('id', { ascending: true });
-      if (tenant_id) q = q.eq('tenant_id', tenant_id);
+      if (tenantId) q = q.eq('tenant_id', tenantId);
       const { data, error } = await q;
       if (error) throw error;
       return res.status(200).json(data || []);
@@ -21,7 +18,7 @@ export const handler = async function handler(req, res) {
       const { data, error } = await supabase
         .from('payment_terminals')
         .insert({
-          tenant_id: body.tenant_id,
+          tenant_id: tenantId,
           name: body.name,
           provider: body.provider || 'generic',
           terminal_id: body.terminal_id || null,
@@ -52,7 +49,7 @@ export const handler = async function handler(req, res) {
     if (req.method === 'DELETE') {
       const { id } = req.body || {};
       if (!id) return res.status(400).json({ error: 'id required' });
-      const { error } = await supabase.from('payment_terminals').delete().eq('id', id);
+      const { error } = await supabase.from('payment_terminals').delete().eq('id', id).eq('tenant_id', tenantId);
       if (error) throw error;
       return res.status(200).json({ ok: true });
     }
@@ -62,4 +59,6 @@ export const handler = async function handler(req, res) {
     console.error('payment-terminals API error:', err);
     res.status(500).json({ error: err.message });
   }
-}
+  },
+  { permissions: { GET: 'bank_accounts:read', POST: 'bank_accounts:write', PUT: 'bank_accounts:write', DELETE: 'bank_accounts:write' } }
+);
