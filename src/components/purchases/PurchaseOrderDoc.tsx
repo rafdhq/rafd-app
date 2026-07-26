@@ -191,7 +191,7 @@ export default function PurchaseOrderDoc({
 
           <div className="mt-5 border-t border-dashed border-slate-200 pt-4 text-center">
             <div className="text-[11px] text-slate-500">
-              {isReceipt ? 'مع خالص الشكر' : (tenant?.invoice_footer || 'شكراً لتعاملكم معنا')}
+              مع خالص الشكر
             </div>
             <div className="mt-1 text-[10px] font-semibold" style={{ color: primary }}>
               رفد | RAFD

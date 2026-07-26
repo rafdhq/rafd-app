@@ -150,7 +150,12 @@ export async function shareWhatsAppSummaryImage(opts: {
   baseName: string;
 }) {
   const popup = openBlankPopup();
-  await downloadElementAsPng(opts.summaryElement, opts.baseName);
+  try {
+    await downloadElementAsPng(opts.summaryElement, opts.baseName);
+  } catch (err) {
+    popup?.close();
+    throw err;
+  }
   const url =
     `https://wa.me/${String(opts.phone || '').replace(/\D/g, '') || ''}?text=` +
     encodeURIComponent(
@@ -186,7 +191,12 @@ export async function shareDocumentBundle(opts: {
   // whatsapp-both: open popup synchronously BEFORE the async html2canvas
   // so the browser still sees it as part of the original user gesture.
   const popup = openBlankPopup();
-  await downloadElementAsPng(element, baseName);
+  try {
+    await downloadElementAsPng(element, baseName);
+  } catch (err) {
+    popup?.close();
+    throw err;
+  }
   const waText = `${text}\n\n📎 تم تنزيل الصورة — أرفقها من المعرض في المحادثة.`;
   const cleaned = String(phone || '').replace(/\D/g, '');
   const url = cleaned
