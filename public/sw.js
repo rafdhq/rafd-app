@@ -1,5 +1,5 @@
 /* RAFD service worker — cache shell + offline fallback */
-const CACHE = 'rafd-shell-v2-p2';
+const CACHE = 'rafd-shell-v2-p3';
 const SHELL = ['/', '/index.html', '/favicon.svg', '/mobile/manager', '/mobile/staff'];
 
 self.addEventListener('install', (event) => {
@@ -24,21 +24,23 @@ self.addEventListener('fetch', (event) => {
   // never cache API
   if (url.pathname.startsWith('/api/')) return;
 
-  // network-first for navigations
+  // CacheFirst for navigations: index.html is guaranteed in SHELL after install,
+  // so offline-first works immediately even on first visit.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
+      caches.match('/index.html').then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put('/index.html', copy));
           return res;
-        })
-        .catch(() => caches.match('/index.html'))
+        });
+      })
     );
     return;
   }
 
-  // stale-while-revalidate for static
+  // stale-while-revalidate for static assets
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetched = fetch(req)
