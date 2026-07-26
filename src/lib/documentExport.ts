@@ -1,7 +1,6 @@
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
-
 export async function captureElement(el: HTMLElement, scale = 2) {
+  const html2canvas = (await import('html2canvas')).default;
+
   try {
     await (document as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
   } catch {
@@ -66,6 +65,7 @@ export async function downloadElementAsPng(el: HTMLElement, filename: string) {
  * Each page is a cropped horizontal band of the full canvas.
  */
 export async function downloadElementAsPdf(el: HTMLElement, filename: string) {
+  const { jsPDF } = await import('jspdf');
   const canvas = await captureElement(el, 2);
   const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
   const pageW = pdf.internal.pageSize.getWidth();
