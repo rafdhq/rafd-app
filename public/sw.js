@@ -24,17 +24,22 @@ self.addEventListener('fetch', (event) => {
   // never cache API
   if (url.pathname.startsWith('/api/')) return;
 
-  // CacheFirst for navigations: index.html is guaranteed in SHELL after install,
-  // so offline-first works immediately even on first visit.
+  // stale-while-revalidate for navigations: return cached /index.html immediately
+  // so offline-first works instantly, but fetch in background to update cache
+  // for the next visit (one-refresh lag instead of full SW cycle lag).
   if (req.mode === 'navigate') {
     event.respondWith(
       caches.match('/index.html').then((cached) => {
-        if (cached) return cached;
-        return fetch(req).then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('/index.html', copy));
-          return res;
-        });
+        const fetched = fetch(req)
+          .then((res) => {
+            if (res && res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put('/index.html', copy)).catch(() => {});
+            }
+            return res;
+          })
+          .catch(() => cached);
+        return cached || fetched;
       })
     );
     return;
