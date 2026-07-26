@@ -24,12 +24,7 @@ import { useTenant } from '../contexts/TenantContext';
 import type { Customer, CustomerLedger, Sale } from '../lib/types';
 import { buildWhatsAppNumber, formatMoney } from '../lib/utils';
 import { buildStatementWhatsAppText, downloadCustomerStatementPdf } from '../lib/pdf';
-import {
-  downloadElementAsPng,
-  openWhatsAppWithText,
-  printElement,
-  shareWhatsAppSummaryImage,
-} from '../lib/documentExport';
+
 import {
   computeStatementSlice,
   resolvePeriod,
@@ -218,6 +213,7 @@ export default function Customers() {
     if (!el) return;
     setExporting('image');
     try {
+      const { downloadElementAsPng } = await import('../lib/documentExport');
       await downloadElementAsPng(el, `rafd-statement-summary-${selected.id}-${Date.now()}.png`);
     } finally {
       setExporting('');
@@ -231,6 +227,7 @@ export default function Customers() {
     if (!el) return;
     setExporting('wa');
     try {
+      const { shareWhatsAppSummaryImage } = await import('../lib/documentExport');
       await shareWhatsAppSummaryImage({
         summaryElement: el,
         phone: selected.phone,
@@ -247,6 +244,7 @@ export default function Customers() {
     if (!el) return;
     setExporting('print');
     try {
+      const { printElement } = await import('../lib/documentExport');
       await printElement(el);
     } finally {
       setExporting('');
@@ -386,7 +384,13 @@ export default function Customers() {
                 <MessageCircle className="h-4 w-4" />
                 واتساب (ملخص صفحة واحدة)
               </Button>
-              <Button variant="ghost" onClick={() => openWhatsAppWithText(selected?.phone, statementText())}>
+              <Button
+                variant="ghost"
+                onClick={async () => {
+                  const { openWhatsAppWithText } = await import('../lib/documentExport');
+                  openWhatsAppWithText(selected?.phone, statementText());
+                }}
+              >
                 نص فقط
               </Button>
             </div>

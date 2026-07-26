@@ -1,5 +1,5 @@
 /* RAFD service worker — cache shell + offline fallback */
-const CACHE = 'rafd-shell-v2-p2';
+const CACHE = 'rafd-shell-v2-p3';
 const SHELL = ['/', '/index.html', '/favicon.svg', '/mobile/manager', '/mobile/staff'];
 
 self.addEventListener('install', (event) => {
@@ -24,21 +24,28 @@ self.addEventListener('fetch', (event) => {
   // never cache API
   if (url.pathname.startsWith('/api/')) return;
 
-  // network-first for navigations
+  // stale-while-revalidate for navigations: return cached /index.html immediately
+  // so offline-first works instantly, but fetch in background to update cache
+  // for the next visit (one-refresh lag instead of full SW cycle lag).
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('/index.html', copy));
-          return res;
-        })
-        .catch(() => caches.match('/index.html'))
+      caches.match('/index.html').then((cached) => {
+        const fetched = fetch(req)
+          .then((res) => {
+            if (res && res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put('/index.html', copy)).catch(() => {});
+            }
+            return res;
+          })
+          .catch(() => cached);
+        return cached || fetched;
+      })
     );
     return;
   }
 
-  // stale-while-revalidate for static
+  // stale-while-revalidate for static assets
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetched = fetch(req)

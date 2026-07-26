@@ -55,6 +55,7 @@ import {
   generateInvoiceNumber,
   isWeightProduct,
   lineAmount,
+  sanitizeFileName,
   shareWhatsApp,
   WALLET_PROVIDERS,
 } from '../lib/utils';
@@ -70,6 +71,17 @@ import {
 type PayMethod = 'cash' | 'card' | 'split' | 'transfer' | 'credit' | 'wallet' | 'pos';
 
 const SUSPEND_KEY = 'rafd-suspended-carts';
+
+function buildInvoiceBaseName(
+  tenantName: string,
+  customerName: string | null | undefined,
+  invoiceNumber: string
+) {
+  const t = sanitizeFileName(tenantName || 'رفد');
+  const c = sanitizeFileName(customerName || 'عميل-نقدي');
+  const dateStr = new Date().toISOString().slice(0, 10);
+  return `rafd-${t}-${c}-${invoiceNumber}-${dateStr}`;
+}
 
 interface SuspendedCart {
   id: string;
@@ -1612,15 +1624,35 @@ export default function POS() {
                 const el = document.getElementById(
                   receiptTab === 'thermal' ? 'thermal-receipt-print' : 'detailed-invoice-print'
                 );
-                if (!el) return;
+                if (!el || !receiptView) return;
                 const { downloadElementAsPng } = await import('../lib/documentExport');
-                await downloadElementAsPng(
-                  el,
-                  `rafd-invoice-${receipt?.invoice_number || Date.now()}.png`
+                const baseName = buildInvoiceBaseName(
+                  tenant?.name_ar || tenant?.name || 'رفد',
+                  receiptView.customer_name,
+                  receiptView.invoice_number
                 );
+                await downloadElementAsPng(el, `${baseName}.png`);
               }}
             >
               صورة
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                const el = document.getElementById(
+                  receiptTab === 'thermal' ? 'thermal-receipt-print' : 'detailed-invoice-print'
+                );
+                if (!el || !receiptView) return;
+                const { downloadElementAsPdf } = await import('../lib/documentExport');
+                const baseName = buildInvoiceBaseName(
+                  tenant?.name_ar || tenant?.name || 'رفد',
+                  receiptView.customer_name,
+                  receiptView.invoice_number
+                );
+                await downloadElementAsPdf(el, `${baseName}.pdf`);
+              }}
+            >
+              PDF
             </Button>
             <Button
               variant="soft"
@@ -1651,13 +1683,18 @@ export default function POS() {
                 const el = document.getElementById(
                   receiptTab === 'thermal' ? 'thermal-receipt-print' : 'detailed-invoice-print'
                 );
+                const baseName = buildInvoiceBaseName(
+                  tenant?.name_ar || tenant?.name || 'رفد',
+                  receiptView.customer_name,
+                  receiptView.invoice_number
+                );
                 if (el) {
                   const { shareDocumentBundle } = await import('../lib/documentExport');
                   await shareDocumentBundle({
                     element: el,
                     phone: receiptView.customer_phone,
                     text,
-                    baseName: `rafd-invoice-${receipt.invoice_number}`,
+                    baseName,
                     mode: 'whatsapp-both',
                   });
                 } else {

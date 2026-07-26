@@ -4,6 +4,14 @@ export function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
 
+export function sanitizeFileName(name: string): string {
+  return name
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100);
+}
+
 /** Force Western (English) digits everywhere — Arabic UI text stays Arabic */
 export const APP_NUMBER_LOCALE = 'en-US';
 export const APP_DATE_LOCALE = 'en-GB';

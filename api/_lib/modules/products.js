@@ -100,6 +100,7 @@ export const handler = withApi(
           unit: body.unit || 'حبة',
           image_url: body.image_url || null,
           is_active: body.is_active !== false,
+          sell_by_weight: body.sell_by_weight === true,
         })
         .select()
         .single();
@@ -140,6 +141,10 @@ export const handler = withApi(
       delete patch.cartons;
       delete patch.add_cartons;
       delete patch.tenant_id;
+
+      if (rest.sell_by_weight !== undefined) {
+        patch.sell_by_weight = !!rest.sell_by_weight;
+      }
 
       if (rest.carton_cost != null || rest.units_per_carton != null) {
         unitCost = rest.unit_cost != null ? Number(rest.unit_cost) : computeUnitCost(cartonCost, unitsPerCarton);

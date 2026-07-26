@@ -173,7 +173,7 @@ export default function Sidebar({
       <aside
         aria-label={locale === 'ar' ? 'القائمة الرئيسية' : 'Main navigation'}
         className={cn(
-          'fixed inset-y-0 z-50 flex w-[min(288px,88vw)] flex-col border-white/5 bg-sidebar text-sidebar transition-transform duration-200 ease-out lg:static lg:w-72 lg:translate-x-0 lg:shrink-0',
+          'fixed inset-y-0 z-50 flex h-screen max-h-[100dvh] w-[min(288px,88vw)] flex-col border-white/5 bg-sidebar text-sidebar transition-transform duration-200 ease-out lg:static lg:h-[100dvh] lg:w-72 lg:translate-x-0 lg:shrink-0',
           side,
           borderSide,
           open ? 'translate-x-0 shadow-lift' : `${hiddenTranslate} lg:translate-x-0 lg:shadow-none`

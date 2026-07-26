@@ -283,6 +283,8 @@ table,
 .sidebar-scroll {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in oklab, var(--sidebar-text) 45%, transparent) transparent;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 .sidebar-scroll::-webkit-scrollbar {
   width: 6px;

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MessageCircle, Plus, Trash2, PackagePlus, CheckCircle2, Eye } from 'lucide-react';
+import { MessageCircle, Plus, Trash2, PackagePlus, CheckCircle2, Eye, Printer, FileText } from 'lucide-react';
 import PageHeader from '../components/ui/PageHeader';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -11,7 +11,9 @@ import { PageSkeleton } from '../components/ui/Skeleton';
 import EmptyState from '../components/ui/EmptyState';
 import { useTenant } from '../contexts/TenantContext';
 import type { Product, Purchase, PurchaseItem, Supplier } from '../lib/types';
-import { formatDate, formatMoney, shareWhatsApp } from '../lib/utils';
+import PurchaseOrderDoc from '../components/purchases/PurchaseOrderDoc';
+import type { PurchaseOrderViewModel } from '../components/purchases/PurchaseOrderDoc';
+import { formatDate, formatMoney, sanitizeFileName, shareWhatsApp } from '../lib/utils';
 
 interface DraftLine {
   key: string;
@@ -65,6 +67,26 @@ export default function Purchases() {
     notes: '',
   });
   const [lines, setLines] = useState<DraftLine[]>([]);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receiving, setReceiving] = useState<Purchase | null>(null);
+  const [receiveItems, setReceiveItems] = useState<
+    Array<{
+      id?: number;
+      product_id?: number | null;
+      product_name: string;
+      quantity: number;
+      received_quantity: number;
+      unit_cost: number;
+      unit?: string;
+      total: number;
+    }>
+  >([]);
+  const [receivePaid, setReceivePaid] = useState(0);
+  const [receiveDocOpen, setReceiveDocOpen] = useState(false);
+  const [receivedView, setReceivedView] = useState<Purchase | null>(null);
+  const [shareConfirmOpen, setShareConfirmOpen] = useState(false);
+  const [createdPurchase, setCreatedPurchase] = useState<Purchase | null>(null);
+  const [createdSupplier, setCreatedSupplier] = useState<Supplier | null>(null);
 
   const load = async () => {
     if (!tenant?.id) { setLoading(false); return; }
@@ -213,19 +235,21 @@ export default function Purchases() {
     const created: Purchase = await res.json();
     setOpen(false);
     load();
-    // offer whatsapp share
-    if (supplier?.phone && confirm('مشاركة الطلبية عبر واتساب مع المورد؟')) {
-      shareOrder(created, supplier);
+    // offer whatsapp share via styled dialog instead of native confirm
+    if (supplier?.phone) {
+      setCreatedPurchase(created);
+      setCreatedSupplier(supplier);
+      setShareConfirmOpen(true);
     }
   };
 
-  const shareOrder = (purchase: Purchase, supplier?: Supplier | null) => {
-    const s = supplier || suppliers.find((x) => x.id === purchase.supplier_id);
+  const buildOrderWhatsAppText = (purchase: Purchase) => {
+    const s = suppliers.find((x) => x.id === purchase.supplier_id);
     const itemLines = (purchase.items || []).map(
       (it, i) =>
         `${i + 1}) ${it.product_name} — ${it.cartons || ''} كرتون / ${it.quantity} ${it.unit || 'حبة'} × ${formatMoney(it.unit_cost, currency)} = ${formatMoney(it.total, currency)}`
     );
-    const text = [
+    return [
       `طلبية شراء — ${tenant?.name_ar || tenant?.name || 'المتجر'}`,
       `المرجع: ${purchase.reference}`,
       `التاريخ: ${purchase.purchase_date}`,
@@ -242,6 +266,11 @@ export default function Purchases() {
     ]
       .filter(Boolean)
       .join('\n');
+  };
+
+  const shareOrder = (purchase: Purchase, supplier?: Supplier | null) => {
+    const text = buildOrderWhatsAppText(purchase);
+    const s = supplier || suppliers.find((x) => x.id === purchase.supplier_id);
     shareWhatsApp(s?.phone || '', text);
   };
 
@@ -256,17 +285,92 @@ export default function Purchases() {
     setViewOpen(true);
   };
 
-  const receiveOrder = async (p: Purchase) => {
-    if (!confirm('تأكيد استلام الطلبية وتحديث المخزون؟')) return;
+  const openReceive = (p: Purchase) => {
+    setReceiving(p);
+    setReceiveItems(
+      (p.items || []).map((it) => ({
+        id: it.id,
+        product_id: it.product_id,
+        product_name: it.product_name,
+        quantity: Number(it.quantity || 0),
+        received_quantity: Number((it as { received_quantity?: number }).received_quantity ?? it.quantity ?? 0),
+        unit_cost: Number(it.unit_cost || 0),
+        unit: it.unit || 'حبة',
+        total: Number(it.total || 0),
+      }))
+    );
+    setReceivePaid(Number(p.paid || 0));
+    setReceiveOpen(true);
+  };
+
+  const receiveTotal = useMemo(() => {
+    return receiveItems.reduce((a, it) => a + it.received_quantity * it.unit_cost, 0);
+  }, [receiveItems]);
+
+  const receiveBalance = useMemo(() => {
+    return receiveTotal - receivePaid;
+  }, [receiveTotal, receivePaid]);
+
+  const submitReceive = async () => {
+    if (!receiving) return;
     setBusy(true);
-    await fetch('/api/purchases', {
+    const res = await fetch('/api/purchases', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: p.id, receive: true }),
+      body: JSON.stringify({
+        id: receiving.id,
+        receive: true,
+        paid: receivePaid,
+        items: receiveItems.map((it) => ({
+          product_id: it.product_id,
+          product_name: it.product_name,
+          received_quantity: it.received_quantity,
+          quantity: it.quantity,
+          unit_cost: it.unit_cost,
+          unit: it.unit,
+          total: it.total,
+        })),
+      }),
     });
     setBusy(false);
-    setViewOpen(false);
-    load();
+    setReceiveOpen(false);
+    if (res.ok) {
+      const updated: Purchase = await res.json();
+      setReceivedView(updated);
+      setReceiveDocOpen(true);
+      load();
+    } else {
+      alert('تعذر تأكيد الاستلام');
+    }
+  };
+
+  const purchaseToViewModel = (p: Purchase): PurchaseOrderViewModel => {
+    return {
+      reference: p.reference,
+      supplier_name: p.supplier_name,
+      purchase_date: p.purchase_date,
+      status: p.status,
+      notes: p.notes,
+      total: Number(p.total || 0),
+      paid: Number(p.paid || 0),
+      items: (p.items || []).map((it) => ({
+        product_name: it.product_name,
+        quantity: Number(it.quantity || 0),
+        received_quantity: Number((it as { received_quantity?: number }).received_quantity ?? it.quantity ?? 0),
+        unit: it.unit || 'حبة',
+        unit_cost: Number(it.unit_cost || 0),
+        total: Number(it.total || 0),
+        cartons: Number(it.cartons || 0),
+        units_per_carton: Number(it.units_per_carton || 1),
+      })),
+    };
+  };
+
+  const buildPurchaseBaseName = (p: Purchase) => {
+    const t = sanitizeFileName(tenant?.name_ar || tenant?.name || 'رفد');
+    const s = sanitizeFileName(p.supplier_name || 'مورد');
+    const dateStr = new Date().toISOString().slice(0, 10);
+    return `rafd-${t}-${s}-${p.reference}-${dateStr}`;
   };
 
   if (loading) return <PageSkeleton />;
@@ -329,7 +433,7 @@ export default function Purchases() {
                       واتساب
                     </Button>
                     {p.status !== 'received' && (
-                      <Button size="sm" variant="primary" loading={busy} onClick={() => receiveOrder(p)}>
+                      <Button size="sm" variant="primary" loading={busy} onClick={() => openReceive(p)}>
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         استلام
                       </Button>
@@ -511,18 +615,64 @@ export default function Purchases() {
         size="lg"
         footer={
           <div className="flex flex-wrap justify-between gap-2">
-            <Button
-              variant="soft"
-              onClick={() =>
-                viewing && shareOrder(viewing, suppliers.find((s) => s.id === viewing.supplier_id))
-              }
-            >
-              <MessageCircle className="h-4 w-4" />
-              مشاركة واتساب
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="soft"
+                onClick={() =>
+                  viewing && shareOrder(viewing, suppliers.find((s) => s.id === viewing.supplier_id))
+                }
+              >
+                <MessageCircle className="h-4 w-4" />
+                واتساب نصي
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!viewing) return;
+                  const { printElement } = await import('../lib/documentExport');
+                  const el = document.getElementById('purchase-order-print');
+                  if (el) await printElement(el);
+                }}
+              >
+                <Printer className="h-4 w-4" />
+                طباعة
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!viewing) return;
+                  const { downloadElementAsPdf } = await import('../lib/documentExport');
+                  const el = document.getElementById('purchase-order-print');
+                  if (el) await downloadElementAsPdf(el, `${buildPurchaseBaseName(viewing)}.pdf`);
+                }}
+              >
+                <FileText className="h-4 w-4" />
+                PDF
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  if (!viewing) return;
+                  const { shareDocumentBundle } = await import('../lib/documentExport');
+                  const el = document.getElementById('purchase-order-print');
+                  if (!el) return;
+                  const text = buildOrderWhatsAppText(viewing);
+                  await shareDocumentBundle({
+                    element: el,
+                    phone: suppliers.find((s) => s.id === viewing.supplier_id)?.phone,
+                    text,
+                    baseName: buildPurchaseBaseName(viewing),
+                    mode: 'whatsapp-both',
+                  });
+                }}
+              >
+                <MessageCircle className="h-4 w-4" />
+                واتساب صورة
+              </Button>
+            </div>
             <div className="flex gap-2">
               {viewing && viewing.status !== 'received' && (
-                <Button loading={busy} onClick={() => receiveOrder(viewing)}>
+                <Button loading={busy} onClick={() => viewing && openReceive(viewing)}>
                   تأكيد الاستلام
                 </Button>
               )}
@@ -535,39 +685,217 @@ export default function Purchases() {
       >
         {viewing && (
           <div className="space-y-4">
-            <div className="grid gap-2 text-sm sm:grid-cols-2">
-              <div>
-                التاريخ: <strong>{formatDate(viewing.purchase_date)}</strong>
-              </div>
-              <div>
-                الحالة: <Badge tone={statusTone(viewing.status)}>{statusLabel(viewing.status)}</Badge>
-              </div>
-              <div>
-                الإجمالي: <strong className="tabular">{formatMoney(viewing.total, currency)}</strong>
-              </div>
-              <div>
-                المدفوع: <strong className="tabular">{formatMoney(viewing.paid, currency)}</strong>
+            <PurchaseOrderDoc
+              tenant={tenant}
+              order={purchaseToViewModel(viewing)}
+              currency={currency}
+              docId="purchase-order-print"
+              mode="order"
+            />
+          </div>
+        )}
+      </Dialog>
+      {/* Receive order dialog */}
+      <Dialog
+        open={receiveOpen}
+        onClose={() => setReceiveOpen(false)}
+        title={`استلام طلبية ${receiving?.reference || ''}`}
+        description={receiving?.supplier_name || ''}
+        size="lg"
+        footer={
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm text-muted">
+              المتبقي:{" "}
+              <span
+                className={`text-lg font-bold tabular ${receiveBalance > 0 ? 'text-warning' : receiveBalance < 0 ? 'text-success' : 'text-primary'}`}
+              >
+                {formatMoney(Math.abs(receiveBalance), currency)}
+                {receiveBalance > 0 ? ' (له)' : receiveBalance < 0 ? ' (علينا)' : ''}
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={() => setReceiveOpen(false)}>
+                إلغاء
+              </Button>
+              <Button loading={busy} onClick={submitReceive}>
+                تأكيد الاستلام
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {receiving && (
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                label="المبلغ المدفوع للمورد"
+                type="number"
+                min={0}
+                value={receivePaid}
+                onChange={(e) => setReceivePaid(Number(e.target.value) || 0)}
+              />
+              <div className="flex items-end">
+                <div className="rounded-xl bg-muted px-3 py-2 text-sm">
+                  إجمالي المستلم:{' '}
+                  <strong className="tabular">{formatMoney(receiveTotal, currency)}</strong>
+                </div>
               </div>
             </div>
             <div className="space-y-2">
-              {(viewing.items || []).map((it, idx) => (
+              {receiveItems.map((it, idx) => (
                 <div
-                  key={it.id || idx}
-                  className="flex items-center justify-between rounded-xl border border-app px-3 py-2 text-sm"
+                  key={idx}
+                  className="grid gap-2 rounded-xl border border-app bg-surface p-3 sm:grid-cols-12 sm:items-end"
                 >
-                  <div>
+                  <div className="sm:col-span-4">
+                    <div className="text-xs text-muted">الصنف</div>
                     <div className="font-medium">{it.product_name}</div>
-                    <div className="text-xs text-muted">
-                      {it.cartons ? `${it.cartons} كرتون · ` : ''}
-                      {it.quantity} {it.unit || 'حبة'}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="text-xs text-muted">المطلوب</div>
+                    <div className="tabular">
+                      {it.quantity} {it.unit}
                     </div>
                   </div>
-                  <div className="text-end tabular font-semibold">{formatMoney(it.total, currency)}</div>
+                  <div className="sm:col-span-3">
+                    <Input
+                      label="المستلم"
+                      type="number"
+                      min={0}
+                      value={it.received_quantity}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setReceiveItems((prev) =>
+                          prev.map((item, i) => (i === idx ? { ...item, received_quantity: val } : item))
+                        );
+                      }}
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <Input
+                      label="سعر الوحدة"
+                      type="number"
+                      min={0}
+                      value={it.unit_cost}
+                      onChange={(e) => {
+                        const val = Number(e.target.value) || 0;
+                        setReceiveItems((prev) =>
+                          prev.map((item, i) => (i === idx ? { ...item, unit_cost: val } : item))
+                        );
+                      }}
+                    />
+                  </div>
                 </div>
               ))}
-              {!viewing.items?.length && <div className="text-sm text-muted">لا تفاصيل أصناف</div>}
             </div>
           </div>
+        )}
+      </Dialog>
+
+      {/* Share confirmation after create */}
+      <Dialog
+        open={shareConfirmOpen}
+        onClose={() => setShareConfirmOpen(false)}
+        title="مشاركة الطلبية"
+        description={`هل تريد إرسال طلبية ${createdPurchase?.reference || ''} عبر واتساب للمورد ${createdSupplier?.name || ''}؟`}
+        size="sm"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setShareConfirmOpen(false)}>
+              لاحقاً
+            </Button>
+            <Button
+              onClick={() => {
+                setShareConfirmOpen(false);
+                if (createdPurchase) shareOrder(createdPurchase, createdSupplier);
+              }}
+            >
+              <MessageCircle className="h-4 w-4" />
+              مشاركة
+            </Button>
+          </div>
+        }
+      >
+        <div className="text-sm text-muted">
+          سيتم فتح واتساب مع نص الطلبية جاهزاً للإرسال.
+        </div>
+      </Dialog>
+
+      {/* Received receipt dialog */}
+      <Dialog
+        open={receiveDocOpen}
+        onClose={() => {
+          setReceiveDocOpen(false);
+          setReceivedView(null);
+        }}
+        title={`إيصال استلام — ${receivedView?.reference || ''}`}
+        description={receivedView?.supplier_name || ''}
+        size="lg"
+        footer={
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!receivedView) return;
+                const { printElement } = await import('../lib/documentExport');
+                const el = document.getElementById('purchase-receipt-print');
+                if (el) await printElement(el);
+              }}
+            >
+              <Printer className="h-4 w-4" />
+              طباعة
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!receivedView) return;
+                const { downloadElementAsPdf } = await import('../lib/documentExport');
+                const el = document.getElementById('purchase-receipt-print');
+                if (el) await downloadElementAsPdf(el, `${buildPurchaseBaseName(receivedView)}-receipt.pdf`);
+              }}
+            >
+              <FileText className="h-4 w-4" />
+              PDF
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!receivedView) return;
+                const { shareDocumentBundle } = await import('../lib/documentExport');
+                const el = document.getElementById('purchase-receipt-print');
+                if (!el) return;
+                const text = buildOrderWhatsAppText(receivedView);
+                await shareDocumentBundle({
+                  element: el,
+                  phone: suppliers.find((s) => s.id === receivedView.supplier_id)?.phone,
+                  text,
+                  baseName: `${buildPurchaseBaseName(receivedView)}-receipt`,
+                  mode: 'whatsapp-both',
+                });
+              }}
+            >
+              <MessageCircle className="h-4 w-4" />
+              واتساب
+            </Button>
+            <Button
+              onClick={() => {
+                setReceiveDocOpen(false);
+                setReceivedView(null);
+              }}
+            >
+              تم
+            </Button>
+          </div>
+        }
+      >
+        {receivedView && (
+          <PurchaseOrderDoc
+            tenant={tenant}
+            order={purchaseToViewModel(receivedView)}
+            currency={currency}
+            docId="purchase-receipt-print"
+            mode="receipt"
+          />
         )}
       </Dialog>
     </div>
