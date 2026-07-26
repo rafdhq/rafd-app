@@ -129,6 +129,16 @@ export function openWhatsAppWithText(phone: string | null | undefined, text: str
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 
+/** Open a blank popup synchronously to preserve the user-gesture token,
+ *  then navigate it after async work completes. */
+function openBlankPopup() {
+  try {
+    return window.open('about:blank', '_blank');
+  } catch {
+    return null;
+  }
+}
+
 /**
  * WhatsApp: share ONE-PAGE summary image only (+ short text).
  * Full multi-page detail stays in PDF.
@@ -139,11 +149,21 @@ export async function shareWhatsAppSummaryImage(opts: {
   text: string;
   baseName: string;
 }) {
+  const popup = openBlankPopup();
   await downloadElementAsPng(opts.summaryElement, opts.baseName);
-  openWhatsAppWithText(
-    opts.phone,
-    `${opts.text}\n\n📎 تم تنزيل صورة ملخص كشف الحساب (صفحة واحدة) — أرفقها من المعرض.`
-  );
+  const url =
+    `https://wa.me/${String(opts.phone || '').replace(/\D/g, '') || ''}?text=` +
+    encodeURIComponent(
+      `${opts.text}\n\n📎 تم تنزيل صورة ملخص كشف الحساب (صفحة واحدة) — أرفقها من المعرض.`
+    );
+  if (popup) {
+    popup.location.href = url;
+  } else {
+    openWhatsAppWithText(
+      opts.phone,
+      `${opts.text}\n\n📎 تم تنزيل صورة ملخص كشف الحساب (صفحة واحدة) — أرفقها من المعرض.`
+    );
+  }
 }
 
 /** Back-compat helper used by POS/Invoices */
@@ -163,15 +183,24 @@ export async function shareDocumentBundle(opts: {
     await downloadElementAsPng(element, baseName);
     return;
   }
+  // whatsapp-both: open popup synchronously BEFORE the async html2canvas
+  // so the browser still sees it as part of the original user gesture.
+  const popup = openBlankPopup();
   await downloadElementAsPng(element, baseName);
-  openWhatsAppWithText(
-    phone,
-    `${text}\n\n📎 تم تنزيل الصورة — أرفقها من المعرض في المحادثة.`
-  );
+  const waText = `${text}\n\n📎 تم تنزيل الصورة — أرفقها من المعرض في المحادثة.`;
+  const cleaned = String(phone || '').replace(/\D/g, '');
+  const url = cleaned
+    ? `https://wa.me/${cleaned}?text=${encodeURIComponent(waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+  if (popup) {
+    popup.location.href = url;
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }
 
 export async function printElement(el: HTMLElement) {
-  const printWin = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1000');
+  const printWin = window.open('', '_blank', 'width=900,height=1000');
   if (!printWin) {
     window.print();
     return;

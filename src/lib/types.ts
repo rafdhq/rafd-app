@@ -57,6 +57,7 @@ export interface Product {
   unit: string;
   image_url?: string | null;
   is_active: boolean;
+  sell_by_weight?: boolean | null;
   units_per_carton?: number | null;
   carton_cost?: number | null;
   supplier_id?: number | null;
@@ -135,6 +136,7 @@ export interface PurchaseItem {
   product_id?: number | null;
   product_name: string;
   quantity: number;
+  received_quantity?: number;
   unit?: string;
   unit_cost: number;
   total: number;

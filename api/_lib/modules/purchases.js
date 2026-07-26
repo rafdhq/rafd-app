@@ -42,7 +42,7 @@ async function applySupplierBalance({ tenantId, supplierId, total, paid, referen
 async function receiveStock(items) {
   for (const it of items || []) {
     if (!it.product_id) continue;
-    const qty = Number(it.quantity || 0);
+    const qty = Number(it.received_quantity ?? it.quantity ?? 0);
     if (qty <= 0) continue;
     const { data: prod } = await supabase.from('products').select('stock, cost').eq('id', it.product_id).single();
     if (!prod) continue;
@@ -200,11 +200,41 @@ export const handler = withApi(
             .from('purchase_items')
             .select('*')
             .eq('purchase_id', id);
-          await receiveStock(savedItems || []);
+
+          // If caller sent items with received_quantity, persist them first
+          const incomingItems = Array.isArray(req.body.items) ? req.body.items : [];
+          if (incomingItems.length && savedItems?.length) {
+            for (const it of savedItems) {
+              const incoming = incomingItems.find((i) =>
+                i.product_id ? Number(i.product_id) === Number(it.product_id) : i.product_name === it.product_name
+              );
+              if (incoming && incoming.received_quantity != null) {
+                await supabase
+                  .from('purchase_items')
+                  .update({ received_quantity: Number(incoming.received_quantity) })
+                  .eq('id', it.id);
+                it.received_quantity = Number(incoming.received_quantity);
+              }
+            }
+          }
+
+          // Re-fetch with updated received_quantity for accurate stock and balance
+          const { data: updatedItems } = await supabase
+            .from('purchase_items')
+            .select('*')
+            .eq('purchase_id', id);
+          const itemsToReceive = updatedItems || savedItems || [];
+          await receiveStock(itemsToReceive);
+
+          const receivedTotal = itemsToReceive.reduce(
+            (a, it) => a + Number(it.received_quantity ?? it.quantity ?? 0) * Number(it.unit_cost || 0),
+            0
+          );
+
           await applySupplierBalance({
             tenantId: current.tenant_id,
             supplierId: current.supplier_id,
-            total: rest.total ?? current.total,
+            total: receivedTotal || rest.total || current.total,
             paid: rest.paid ?? current.paid,
             reference: current.reference,
             purchaseId: id,
@@ -216,7 +246,7 @@ export const handler = withApi(
               action: 'purchase.receive',
               entity_type: 'purchases',
               entity_id: String(id),
-              meta: { from_status: current.status },
+              meta: { from_status: current.status, received_total: receivedTotal },
             });
           } catch {
             /* ignore */
